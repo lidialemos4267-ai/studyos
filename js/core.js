@@ -104,6 +104,7 @@
       disciplinas: SOS.seedDisciplinas(),
       topicos: SOS.parseSeedTopicos(conc),
       atividades: [], sessoes: [], erros: [], flashcards: [], discursivas: [], temas: [], simulados: [],
+      cadernos: [], tec: {}, leis: SOS.leis ? SOS.leis.seed() : [], juris: [],
       historico: []
     };
   };
@@ -116,6 +117,18 @@
     if (!Array.isArray(d.concursos) || !d.concursos.length) d.concursos = base.concursos;
     if (!Array.isArray(d.disciplinas) || !d.disciplinas.length) d.disciplinas = base.disciplinas;
     if (!Array.isArray(d.topicos) || !d.topicos.length) d.topicos = base.topicos;
+    if (!Array.isArray(d.cadernos)) d.cadernos = [];
+    if (!d.tec || typeof d.tec !== 'object') d.tec = {};
+    if (!Array.isArray(d.leis) && SOS.leis) d.leis = SOS.leis.seed();
+    if (!Array.isArray(d.juris)) d.juris = [];
+    // v2: perfil da banca e incidência estimada (fonte: Sendera — texto editorial, não análise de provas)
+    if (!d.migr2) {
+      d.migr2 = true;
+      var perfil = ['Múltipla escolha (A–D nestes editais), sem penalidade por erro.', 'Enunciados curtos e objetivos; conhecimentos específicos em nível básico-médio.', 'Cobra legislação municipal e estadual do concurso — priorize Lei Orgânica e Estatuto do Servidor local.', 'Português tradicional: ortografia, acentuação, pontuação, regência.', 'Matemática/RLM em nível fundamental-médio.', 'Atualidades do município e do estado.', 'Resolva provas da Selecon da mesma região (MT) e cronometre o ritmo por questão.'];
+      (d.concursos || []).forEach(function (c) { if (c.banca && /selecon/i.test(c.banca) && !c.bancaPerfil) { c.bancaPerfil = perfil; c.bancaFonte = 'Sendera — “Como a SELECON cobra” (análise editorial do site; não é levantamento verificado de provas).'; } });
+      var alta = { lc01: 1, lc03: 1, lh01: 1, lh02: 1, lp06: 1, lp07: 1, lp28: 1, lp14: 1, hg18: 1 };
+      (d.topicos || []).forEach(function (t) { if (alta[t.id] && t.inc === 'sd') { t.inc = 'alta'; t.incJust = 'Estimativa: perfil da Selecon (Sendera) indica cobrança frequente de ' + ({ lc01: 'Lei Orgânica do município', lc03: 'estatuto do servidor local', lh01: 'Lei Orgânica do município', lh02: 'estatuto do servidor local', hg18: 'atualidades do estado/município' }[t.id] || 'português tradicional (ortografia, acentuação, pontuação, regência)') + '. Não é garantia de cobrança; validar com provas anteriores.'; } });
+    }
     return d;
   }
 
@@ -133,7 +146,7 @@
         try { localStorage.setItem('studyos.corrupted.' + Date.now(), raw); } catch (e3) { /* sem espaço */ }
       }
     }
-    SOS.S = SOS.freshState();
+    SOS.S = migrate(SOS.freshState());
     SOS.saveNow();
     return 'fresh';
   };
@@ -212,10 +225,12 @@
     if (mode === 'replace') { SOS.S = migrate(d); }
     else {
       var S = SOS.S;
-      ['concursos', 'disciplinas', 'topicos', 'atividades', 'sessoes', 'erros', 'flashcards', 'discursivas', 'temas', 'simulados'].forEach(function (k) {
+      ['concursos', 'disciplinas', 'topicos', 'atividades', 'sessoes', 'erros', 'flashcards', 'discursivas', 'temas', 'simulados', 'cadernos', 'leis', 'juris'].forEach(function (k) {
+        S[k] = S[k] || [];
         var have = {}; (S[k] || []).forEach(function (x) { have[x.id] = x; });
         (d[k] || []).forEach(function (x) { if (!have[x.id]) S[k].push(x); });
       });
+      if (d.tec && d.tec.qs && SOS.tec) { var tq = d.tec.qs; SOS.tec.importData({ qs: Object.keys(tq).map(function (k) { return tq[k]; }), cads: Object.keys(d.tec.cads || {}).map(function (k) { return d.tec.cads[k]; }) }, true); }
     }
     SOS.saveNow();
   };

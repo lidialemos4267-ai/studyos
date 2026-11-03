@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 340px; margin: 0; font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1b2130; }
+  header { background: #4f46e5; color: #fff; padding: 12px 14px; font-weight: 700; font-size: 15px; }
+  main { padding: 12px 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+  .k { background: #f1f3f8; border-radius: 10px; padding: 8px 10px; }
+  .k b { display: block; font-size: 20px; }
+  .k span { font-size: 12px; color: #667085; }
+  button, a.btn { display: block; width: 100%; box-sizing: border-box; margin-bottom: 7px; padding: 8px 10px; border-radius: 9px; border: 1px solid #e3e6ee; background: #fff; cursor: pointer; font: inherit; text-align: left; color: inherit; text-decoration: none; }
+  button.primary, a.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+  button.danger { color: #dc2626; }
+  button.danger.armed { background: #dc2626; color: #fff; }
+  small { color: #667085; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #f1f3f8; border-radius: 8px; padding: 8px; max-height: 220px; overflow: auto; font-size: 11px; }
+  #msg { min-height: 18px; font-size: 12.5px; color: #16a34a; }
+</style>
+</head>
+<body>
+<header>StudyOS · TEC Concursos</header>
+<main>
+  <div class="kpis">
+    <div class="k"><b id="kq">0</b><span>questões guardadas</span></div>
+    <div class="k"><b id="ke">0</b><span>com erro</span></div>
+    <div class="k"><b id="kr">0</b><span>erradas 2× ou mais</span></div>
+    <div class="k"><b id="kc">0</b><span>cadernos acompanhados</span></div>
+  </div>
+  <a class="btn primary" id="abrir" href="https://lidialemos4267-ai.github.io/studyos/#tec" target="_blank">Abrir StudyOS › Banco de questões</a>
+  <button id="baixar">⬇ Baixar JSON (backup / importar no StudyOS)</button>
+  <button id="copiar">⧉ Copiar JSON</button>
+  <button id="diag">🔎 Diagnóstico desta página</button>
+  <button id="limpar" class="danger">Limpar dados da extensão</button>
+  <div id="msg"></div>
+  <pre id="out" hidden></pre>
+  <small>Só guarda o que aparece na sua tela, no seu navegador. Uso pessoal.</small>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>

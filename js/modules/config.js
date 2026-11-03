@@ -32,7 +32,7 @@
         if (e.target.closest('[data-act=export]')) { SOS.exportJSON(); ui.toast('Backup exportado.', 'good'); return SOS.app.render(); }
         if (e.target.closest('[data-act=save]')) return save(el);
         if ((x = e.target.closest('[data-snap]'))) return ui.confirm('Restaurar a versão de ' + U.esc(x.dataset.snap.replace('studyos.snap.', '')) + '? O estado atual será substituído (exporte um backup antes, se quiser guardá-lo).', function () { SOS.restoreSnapshot(x.dataset.snap); SOS.app.applyTheme(); SOS.app.render(); ui.toast('Versão restaurada.', 'good'); }, 'Restaurar');
-        if (e.target.closest('[data-act=reset]')) return ui.confirm('Apagar TODOS os dados e recomeçar? Esta ação não pode ser desfeita (exceto pelos snapshots/backup).', function () { try { localStorage.setItem('studyos.snap.' + U.today() + '-pre-reset', JSON.stringify(SOS.S)); } catch (er) { /* ok */ } SOS.S = SOS.freshState(); SOS.saveNow(); SOS.app.render(); ui.toast('StudyOS redefinido.', 'mid'); }, 'Apagar tudo');
+        if (e.target.closest('[data-act=reset]')) return ui.confirm('Apagar TODOS os dados e recomeçar? Esta ação não pode ser desfeita (exceto pelos snapshots/backup).', function () { try { localStorage.setItem('studyos.snap.' + U.today() + '-pre-reset', JSON.stringify(SOS.S)); } catch (er) { /* ok */ } SOS.S = SOS.freshState(); SOS.saveNow(); SOS.load(); SOS.app.render(); ui.toast('StudyOS redefinido.', 'mid'); }, 'Apagar tudo');
       };
       el.onchange = function (e) {
         if (e.target.name !== 'imp' || !e.target.files[0]) return;

@@ -29,6 +29,7 @@
           '</tbody></table></div><small class="muted">Questões por disciplina: ' + U.esc(c.questoesPorDisciplina || '—') + '</small>' +
           '<h3 style="margin-top:12px">Aprovação</h3><ul style="margin:0;padding-left:18px">' + (c.aprovacao || []).map(function (e) { return '<li>' + U.esc(e) + '</li>'; }).join('') + '</ul>' +
           (c.discursiva && c.discursiva.existe ? '<h3 style="margin-top:12px">Discursiva — ' + c.discursiva.pontos + ' pts · ' + c.discursiva.linhas + ' linhas</h3><p style="margin:0 0 6px">' + U.esc(c.discursiva.tema) + '</p><ul style="margin:0;padding-left:18px">' + c.discursiva.criterios.map(function (k) { return '<li><b>' + k.nome + ' (' + k.max + ')</b>: ' + U.esc(k.desc) + '</li>'; }).join('') + '</ul><small class="muted">Nota zero: ' + U.esc(c.discursiva.zero) + '</small>' : '<p class="muted">Sem prova discursiva.</p>') +
+          (c.bancaPerfil ? '<h3 style="margin-top:12px">Perfil da banca</h3><ul style="margin:0;padding-left:18px">' + c.bancaPerfil.map(function (e) { return '<li>' + U.esc(e) + '</li>'; }).join('') + '</ul><small class="muted">Fonte: ' + U.esc(c.bancaFonte || '') + '</small>' : '') +
           '<h3 style="margin-top:12px">Títulos</h3><p style="margin:0">' + U.esc(c.titulos || '—') + '</p>' +
           '<h3 style="margin-top:12px">Desempate</h3><ol style="margin:0;padding-left:18px">' + (c.desempate || []).map(function (e) { return '<li>' + U.esc(e) + '</li>'; }).join('') + '</ol>' +
           '</div>';

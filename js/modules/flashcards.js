@@ -89,10 +89,11 @@
   }
   function blank(topicId) { var t = SOS.topic(topicId); return { id: U.uid('f'), tipo: 'Pergunta objetiva', frente: '', verso: '', explicacao: '', fundamento: '', pegadinha: '', topicId: topicId || '', concursos: t ? t.concursos.slice() : [], banca: 'Selecon', origem: 'Aula', erroId: null, tags: '', srs: E.cardNew(), log: [], criadoEm: U.today() }; }
 
-  function fromError(e) {
+  function fromError(e, origem) {
     if (!e) return;
-    var drafts = E.draftFromError(e).map(function (d) { var c = blank(e.topicId); Object.assign(c, d); c.origem = 'Erro'; c.erroId = e.id; c.banca = e.banca || 'Selecon'; return c; });
-    editor(drafts, e);
+    var real = !!(e.id && SOS.S.erros.some(function (x) { return x.id === e.id; }));
+    var drafts = E.draftFromError(e).map(function (d) { var c = blank(e.topicId); Object.assign(c, d); c.origem = real ? 'Erro' : (origem || 'Conteúdo importante'); c.erroId = real ? e.id : null; c.banca = e.banca || 'Selecon'; return c; });
+    editor(drafts, real ? e : null);
   }
 
   /* editor com revisão e aprovação antes de salvar (um ou vários cartões) */

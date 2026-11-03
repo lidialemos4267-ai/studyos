@@ -4,9 +4,9 @@
   var app = SOS.app = {};
   app.NAV = [
     ['dashboard', 'Dashboard', '◎'], ['concursos', 'Concursos', '◆'], ['edital', 'Edital verticalizado', '☰'],
-    ['plano', 'Planejamento', '▦'], ['desempenho', 'Questões e desempenho', '✓'], ['erros', 'Caderno de Erros', '✎'],
+    ['plano', 'Planejamento', '▦'], ['desempenho', 'Questões e desempenho', '✓'], ['tec', 'Banco de questões (TEC)', '⊞'], ['erros', 'Caderno de Erros', '✎'],
     ['flashcards', 'Flashcards', '❏'], ['revisoes', 'Revisões', '↻'], ['discursivas', 'Discursivas', '¶'],
-    ['simulados', 'Simulados', '⏱'], ['estatisticas', 'Estatísticas', '▲'], ['config', 'Configurações', '⚙']
+    ['simulados', 'Simulados', '⏱'], ['leis', 'Lei seca e jurisprudência', '§'], ['estatisticas', 'Estatísticas', '▲'], ['config', 'Configurações', '⚙']
   ];
   app.conc = 'all';
   try { app.conc = localStorage.getItem('studyos.ui.conc') || 'all'; } catch (e) { /* ok */ }
@@ -20,7 +20,8 @@
       revisoes: E.revisionQueue(t).length,
       erros: SOS.S.erros.filter(E.erroDue).length,
       flashcards: SOS.S.flashcards.filter(E.cardDue).length,
-      plano: E.pendingActivities().length
+      plano: E.pendingActivities().length,
+      tec: SOS.tec ? SOS.tec.pendingAssuntos().length : 0
     };
   };
   app.renderNav = function () {
