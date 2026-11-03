@@ -165,6 +165,7 @@
       SOS.lastSaved = new Date();
       SOS.setSaveIndicator('salvo às ' + U.pad(SOS.lastSaved.getHours()) + ':' + U.pad(SOS.lastSaved.getMinutes()));
       SOS.dailySnapshot();
+      if (SOS.tec && SOS.tec.pushBackup) SOS.tec.pushBackup();
       return true;
     } catch (e) {
       SOS.setSaveIndicator('ERRO AO SALVAR', true);

@@ -30,6 +30,10 @@ Não apague nem mova a pasta `extensao-tec` depois de instalar: o Chrome carrega
 - Reabrir uma questão já resolvida **não** conta de novo.
 - O comentário, a matéria e as outras informações já guardadas nunca são apagadas por uma leitura incompleta.
 
+## Cópia automática do StudyOS
+
+A extensão também guarda uma cópia dos seus dados do StudyOS, atualizada sozinha. Se o StudyOS abrir vazio (outro endereço, versão nova ou navegador limpo), ele oferece **Restaurar meus dados**. A extensão pede a permissão `unlimitedStorage` só para que essa cópia não esbarre no limite de espaço.
+
 ## Popup (ícone da extensão)
 
 - **Contagens:** questões guardadas, com erro, erradas 2 vezes ou mais, e cadernos acompanhados.

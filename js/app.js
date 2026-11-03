@@ -35,6 +35,8 @@
     var s = SOS.S.settings, h = '';
     if (SOS.recoveredFrom) h += '<div class="alert bad">Os dados principais estavam corrompidos e foram recuperados do snapshot de ' + U.fmtDate(SOS.recoveredFrom.slice(0, 10)) + '.</div>';
     if (SOS.storageError) h += '<div class="alert bad">O navegador bloqueou o armazenamento local. Os dados NÃO serão salvos — abra o arquivo em uma janela normal (não anônima) ou exporte backups.</div>';
+    var eb = SOS.tec && SOS.tec.extBackup;
+    if (eb && !SOS.tec.hasData()) h += '<div class="alert info"><span>🔁 A extensão tem uma cópia dos seus dados de <b>' + new Date(eb.when).toLocaleString('pt-BR') + '</b> (' + U.esc(eb.resumo || '') + '). Este StudyOS está vazio — provavelmente você abriu por outro endereço ou numa versão nova.</span><button class="btn sm" data-act="restoreExt">Restaurar meus dados</button></div>';
     var last = s.ultimoBackup, need = !last || U.diffDays(last, U.today()) >= s.lembreteBackupDias;
     var hasData = SOS.S.sessoes.length + SOS.S.erros.length + SOS.S.flashcards.length > 0;
     if (need && hasData) h += '<div class="alert mid"><span>💾 ' + (last ? 'Último backup em ' + U.fmtDate(last) + '.' : 'Você ainda não exportou nenhum backup.') + ' Exporte um arquivo para não depender só do navegador.</span><button class="btn sm" data-act="backupNow">Exportar backup agora</button></div>';
@@ -65,7 +67,7 @@
     window.addEventListener('hashchange', function () { app.render(); window.scrollTo(0, 0); closeMenu(); });
     ui.$('#concFilter').addEventListener('change', function (e) { app.conc = e.target.value; try { localStorage.setItem('studyos.ui.conc', app.conc); } catch (x) { /* ok */ } app.render(); });
     ui.$('#quickSession').addEventListener('click', function () { ui.sessionModal(); });
-    ui.$('#banner').addEventListener('click', function (e) { if (e.target.closest('[data-act=backupNow]')) { SOS.exportJSON(); app.render(); } });
+    ui.$('#banner').addEventListener('click', function (e) { if (e.target.closest('[data-act=backupNow]')) { SOS.exportJSON(); app.render(); } if (e.target.closest('[data-act=restoreExt]')) SOS.tec.requestBackup(); });
     function closeMenu() { ui.$('#sidebar').classList.remove('open'); ui.$('#scrim').classList.remove('open'); }
     ui.$('#menuBtn').addEventListener('click', function () { ui.$('#sidebar').classList.add('open'); ui.$('#scrim').classList.add('open'); });
     ui.$('#scrim').addEventListener('click', closeMenu);

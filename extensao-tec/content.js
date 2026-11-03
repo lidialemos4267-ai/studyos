@@ -142,6 +142,9 @@
       reg.ult = lido.resultado;
       var cad = lerCaderno(); if (cad && !reg.cad) reg.cad = cad.cad;
       if (cad) reg.cadId = reg.cadId || cad.id;
+      // questão que já aparece errada sem ter sido resolvida aqui (ex.: respondida no celular):
+      // entra como erro (v=1) mas sem tentativa no histórico — as estatísticas vêm dos totais do caderno, sem contar duas vezes
+      if (!contar && lido.resultado === 'E' && !(reg.v > 0)) { reg.v = 1; reg.ds = [hoje()]; reg.foraExt = true; }
       if (contar) {
         reg.hist = (reg.hist || []).concat([{ d: hoje(), t: Date.now(), r: lido.resultado, m: reg.marc || null, src: 'tec' }]);
         if (lido.resultado === 'E') { reg.v = (reg.v || 0) + 1; reg.ds = (reg.ds || []).concat([hoje()]); }

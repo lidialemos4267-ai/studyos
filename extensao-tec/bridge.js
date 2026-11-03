@@ -22,7 +22,17 @@
   window.postMessage({ src: 'tec-bridge', t: 'ping' }, '*');
   window.addEventListener('message', function (ev) {
     if (ev.source !== window || !ev.data || ev.data.src !== 'tec-panel') return;
-    if (ev.data.t === 'pong' && ev.data.sid !== sid) { sid = ev.data.sid; enviar(true); }
+    if (ev.data.t === 'pong' && ev.data.sid !== sid) {
+      sid = ev.data.sid; enviar(true);
+      chrome.storage.local.get(['sosBackup'], function (st) { var b = st.sosBackup; window.postMessage({ src: 'tec-bridge', t: 'backupInfo', info: b ? { when: b.when, where: b.where, size: b.data.length, resumo: b.resumo } : null }, '*'); });
+    }
+    // cópia de segurança automática do StudyOS (fica no chrome.storage desta extensão)
+    if (ev.data.t === 'backup' && sid && typeof ev.data.data === 'string') {
+      chrome.storage.local.set({ sosBackup: { when: ev.data.when, where: ev.data.where, resumo: ev.data.resumo, data: ev.data.data } });
+    }
+    if (ev.data.t === 'getBackup' && sid) {
+      chrome.storage.local.get(['sosBackup'], function (st) { window.postMessage({ src: 'tec-bridge', t: 'backupData', backup: st.sosBackup || null }, '*'); });
+    }
   });
   chrome.storage.onChanged.addListener(function (mud, area) { if (sid && area === 'local' && (mud.qs || mud.cads)) enviar(false); });
 })();

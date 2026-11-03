@@ -191,11 +191,33 @@
   window.addEventListener('message', function (ev) {
     if (ev.source !== window || !ev.data || ev.data.src !== 'tec-bridge') return;
     if (ev.data.t === 'ping') { T.bridgeSeen = Date.now(); window.postMessage({ src: 'tec-panel', t: 'pong', sid: SID }, '*'); return; }
+    if (ev.data.t === 'backupInfo') { T.extBackup = ev.data.info; if (SOS.app && SOS.app.renderBanner) SOS.app.renderBanner(); return; }
+    if (ev.data.t === 'backupData') {
+      var b = ev.data.backup; if (!b) return ui.toast('A extensão não tem cópia guardada.', 'mid');
+      try { SOS.importJSON(JSON.parse(b.data), 'replace'); SOS.recoveredFrom = null; T.extBackup = null; SOS.app.applyTheme(); SOS.app.render(); ui.toast('Dados restaurados da cópia da extensão (' + new Date(b.when).toLocaleString('pt-BR') + ').', 'good', 6000); }
+      catch (e) { ui.toast('Não foi possível restaurar: ' + e.message, 'bad', 6000); }
+      return;
+    }
     if (ev.data.t === 'data' && SOS.S) {
       try { T.importData(ev.data.json, true); if (/^#tec/.test(location.hash) || /^#(erros|dashboard)/.test(location.hash)) SOS.app.render(); else SOS.app.renderNav(); }
       catch (e) { console.warn('StudyOS: falha ao sincronizar com a extensão', e); }
     }
   });
+
+  /* cópia automática do StudyOS dentro da extensão (no máximo a cada 20 s, só se houver dados) */
+  T.hasData = function (S) { S = S || SOS.S; return !!(S && (S.sessoes.length || S.erros.length || S.flashcards.length || S.atividades.length || S.discursivas.length || Object.keys((S.tec || {}).qs || {}).length)); };
+  var lastBk = 0, bkTimer = null;
+  T.pushBackup = function () {
+    if (!T.bridgeSeen || Date.now() - T.bridgeSeen > 15000 || !T.hasData()) return;
+    clearTimeout(bkTimer);
+    var wait = Math.max(0, 20000 - (Date.now() - lastBk));
+    bkTimer = setTimeout(function () {
+      lastBk = Date.now();
+      var S = SOS.S;
+      window.postMessage({ src: 'tec-panel', t: 'backup', when: new Date().toISOString(), where: location.href.split('#')[0], resumo: S.sessoes.length + ' registros · ' + S.erros.length + ' erros · ' + S.flashcards.length + ' flashcards', data: JSON.stringify({ app: 'StudyOS', data: S }) }, '*');
+    }, wait);
+  };
+  T.requestBackup = function () { window.postMessage({ src: 'tec-panel', t: 'getBackup' }, '*'); };
 
   /* ---------- utilidades de exibição ---------- */
   function resOf(q) { var h = q.hist || []; return h.length ? h[h.length - 1].r : q.ult || null; }

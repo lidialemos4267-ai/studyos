@@ -49,6 +49,9 @@ Todos os dados dos editais (estrutura da prova, pesos, critérios, conteúdo pro
 
 ## Backup e restauração
 
+- **Cópia automática na extensão (recomendado):** com a extensão StudyOS — TEC instalada, uma cópia de todos os seus dados é guardada nela a cada alteração (no máximo a cada 20 s). Se você abrir o StudyOS por outro endereço, numa versão nova ou depois de limpar o navegador, aparece **"Restaurar meus dados"** e tudo volta com um clique. Também dá para restaurar em *Configurações › Cópia automática na extensão*.
+- **Por que os dados "somem" ao trocar de versão?** O navegador guarda os dados por endereço: o link do GitHub Pages, um arquivo no computador ou outro navegador são gavetas diferentes. **Use sempre o mesmo endereço**. O mais simples é o link do GitHub Pages, que se atualiza sozinho sem você precisar baixar nada.
+
 - **Salvamento automático** a cada alteração. O indicador "salvo às hh:mm" aparece no rodapé do menu.
 - **Snapshots automáticos**: uma cópia por dia, guardando as 10 últimas, em *Configurações › Versões automáticas*. Também é feita uma cópia antes de cada importação e de cada redefinição.
 - **Exportar backup**: *Configurações › Exportar backup (.json)*. Guarde o arquivo no Google Drive ou no e-mail. O sistema lembra você a cada 7 dias.
