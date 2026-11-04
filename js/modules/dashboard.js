@@ -15,74 +15,106 @@
   }
   SOS.examGroups = examGroups;
 
+  /* ---------- motivação ---------- */
+  var M = SOS.motiv = {};
+  M.FRASES = {
+    comeco: ['Bom dia! Um assunto de cada vez — hoje já é um passo.', 'Começar é a parte mais difícil. Abra o primeiro cartão e o resto vem.', 'Seu eu de 20/12 agradece cada minuto de hoje.', 'Café, caneta e um assunto: é só isso por agora.', 'Pequeno e constante vence grande e esporádico.', 'Hoje você não precisa estudar tudo. Precisa estudar o de hoje.', 'Respira. Escolhe o primeiro cartão. Vai.'],
+    semCulpa: ['Sem culpa: recomeça hoje. Um cartão já conta.', 'Ontem ficou para trás. Hoje é um dia novo e inteiro.', 'Parar um dia não apaga o que você construiu. Volta com calma.', 'Recomeçar também é disciplina. Escolha um assunto curtinho.', 'Ninguém estuda perfeito todo dia. O que importa é voltar.'],
+    meta: ['Meta batida! Orgulho de você. ♡', 'Você fez o que se propôs hoje. Descanse com a consciência leve.', 'Dia cumprido! Isso é constância de verdade.', 'Mais um dia somado. É assim que se passa.', 'Meta do dia: feito. Agora é cuidar de você.'],
+    retaFinal: ['Reta final: revisão e simulado valem ouro agora.', 'Faltam poucos dias. Confie no que já estudou e revise os erros.', 'Agora é lapidar: lei seca do Nível 1, flashcards e simulado.', 'Menos conteúdo novo, mais revisão. Você está pronta para lapidar.', 'Cada erro revisado hoje é um ponto a mais no dia 20.'],
+    vespera: ['Amanhã é o dia. Revise leve, separe tudo e durma cedo. Você se preparou. ♡', 'Véspera: nada de maratona. Só os destaques e descanso.'],
+    prova: ['Hoje é o seu dia. Respira fundo, lê com calma e confia em você. Boa prova! ♡'],
+    depois: ['Prova feita! Seja gentil com você — você foi até o fim. ♡']
+  };
+  M.diaDoAno = function (d) { var x = U.parse(d), y = new Date(x.getFullYear(), 0, 0); return Math.floor((x - y) / 86400000); };
+  M.estudouEm = function (d) {
+    var S = SOS.S;
+    if (S.sessoes.some(function (s) { return s.data === d && ((+s.realizadoMin || 0) > 0 || (+s.total || 0) > 0); })) return true;
+    if (S.atividades.some(function (a) { return a.data === d && a.status === 'feito'; })) return true;
+    if (S.flashcards.some(function (c) { return (c.log || []).some(function (l) { return l.d === d; }); })) return true;
+    return (S.leis || []).some(function (l) { return (l.arts || []).some(function (a) { return a.lidoEm === d; }); });
+  };
+  M.streak = function () {
+    var d = U.today(), n = 0;
+    if (!M.estudouEm(d)) d = U.addDays(d, -1);
+    while (M.estudouEm(d) && n < 400) { n++; d = U.addDays(d, -1); }
+    return n;
+  };
+  M.hoje = function () {
+    var t = U.today(), S = SOS.S, o = { min: 0, q: 0, ac: 0, cards: 0, arts: 0, cartoes: 0 };
+    S.sessoes.forEach(function (s) { if (s.data === t) { o.min += +s.realizadoMin || 0; o.q += +s.total || 0; o.ac += +s.acertos || 0; } });
+    S.atividades.forEach(function (a) { if (a.data === t && a.status === 'feito') { o.cartoes++; if (!a.topicId) o.min += +a.realizadoMin || 0; } });
+    S.flashcards.forEach(function (c) { (c.log || []).forEach(function (l) { if (l.d === t) o.cards++; }); });
+    (S.leis || []).forEach(function (l) { (l.arts || []).forEach(function (a) { if (a.lidoEm === t) o.arts++; }); });
+    o.meta = S.settings.metaDiariaMin || 240; o.bateu = o.min >= o.meta;
+    return o;
+  };
+  M.frase = function () {
+    var t = U.today(), ex = E.examDate(), left = ex ? U.diffDays(t, ex) : 99, h = new Date().getHours(), F = M.FRASES, hj = M.hoje(), k;
+    if (left < 0) k = 'depois'; else if (left === 0) k = 'prova'; else if (left === 1) k = 'vespera';
+    else if (hj.bateu) k = 'meta';
+    else if (!M.estudouEm(t) && !M.estudouEm(U.addDays(t, -1)) && SOS.S.sessoes.length) k = 'semCulpa';
+    else if (left <= E.retaFinalDias()) k = 'retaFinal';
+    else k = 'comeco';
+    var arr = F[k]; return { tipo: k, txt: arr[(M.diaDoAno(t) + (h >= 14 ? 1 : 0)) % arr.length] };
+  };
+  M.progresso = function () {
+    var S = SOS.S, ts = S.topicos, est = ts.filter(function (t) { return t.status !== 'nao'; }).length;
+    var q = E.sum(S.sessoes).total, metaQ = S.settings.metaQuestoesTotal || 700;
+    var arts = 0, lidos = 0; (S.leis || []).filter(function (l) { return E.NORMAS.indexOf(l.topicId) > -1; }).forEach(function (l) { arts += l.arts.length; lidos += l.arts.filter(function (a) { return a.lido; }).length; });
+    var leiBlocos = S.atividades.filter(function (a) { return a.metodo === 'Lei seca'; }), leiFeitos = leiBlocos.filter(function (a) { return a.status === 'feito'; }).length;
+    var cards = S.flashcards.length, rev = S.flashcards.filter(function (c) { return (c.log || []).length; }).length;
+    return [
+      { l: 'Assuntos estudados', v: est, max: ts.length, txt: est + ' de ' + ts.length },
+      { l: 'Questões feitas', v: q, max: metaQ, txt: q + ' de ' + metaQ + ' (meta)' },
+      arts ? { l: 'Lei seca lida', v: lidos, max: arts, txt: lidos + ' de ' + arts + ' artigos' } : { l: 'Lei seca (blocos)', v: leiFeitos, max: leiBlocos.length || 1, txt: leiFeitos + ' de ' + leiBlocos.length + ' blocos' },
+      { l: 'Flashcards revisados', v: rev, max: cards || 1, txt: rev + ' de ' + cards + ' cartões' }
+    ];
+  };
+
   SOS.views.dashboard = {
     render: function (el) {
-      var conc = SOS.app.conc, t = U.today(), S = SOS.S;
-      var mon = U.monday(t), monthStart = t.slice(0, 8) + '01';
-      var wk = E.sum(E.sessions(conc, mon, U.addDays(mon, 6)));
-      var mo = E.sum(E.sessions(conc, monthStart, t));
-      var all = E.sum(E.sessions(conc));
-      var prog = E.progresso(conc);
-      var rq = E.revisionQueue(t);
-      var atrasadas = rq.filter(function (i) { return i.tipo === 'atrasada' && E.topicIn(i.t, conc); }).length;
-      var cardsDue = S.flashcards.filter(function (c) { return E.cardDue(c) && (conc === 'all' || (c.concursos || []).indexOf(conc) > -1); }).length;
-      var errDue = S.erros.filter(function (e) { return E.erroDue(e) && (conc === 'all' || (e.concursos || []).indexOf(conc) > -1); }).length;
-      var recorr = S.erros.filter(function (e) { return (e.ocorrencias || 1) > 1 && e.status !== 'Superado' && (conc === 'all' || (e.concursos || []).indexOf(conc) > -1); }).length;
-      var pend = E.topicsOf(conc).filter(function (x) { return x.status === 'nao'; }).length;
-      var discRealiz = S.discursivas.filter(function (d) { return d.texto && d.texto.trim(); }).length;
-      var bd = E.byDisc(conc).filter(function (d) { return d.total >= 10; }).sort(function (a, b) { return b.pct - a.pct; });
-      var wkly = E.weekly(conc, 8);
+      var t = U.today(), S = SOS.S, C = SOS.CONFIG, ex = E.examDate(), left = ex ? U.diffDays(t, ex) : null;
+      var fr = M.frase(), hj = M.hoje(), st = M.streak(), prog = M.progresso();
+      var rq = E.revisionQueue(t), cardsDue = S.flashcards.filter(E.cardDue).length, errDue = S.erros.filter(E.erroDue).length, drafts = (S.cardDrafts || []).length;
       var today = S.atividades.filter(function (a) { return a.data === t; });
-      var h = '';
-
-      // contagem regressiva
-      h += '<div class="grid g3">';
-      examGroups().forEach(function (g) {
-        var d = U.diffDays(t, g.data);
-        h += '<div class="card"><div class="count"><div class="days">' + (d >= 0 ? d : '✓') + '<small>' + (d === 1 ? 'DIA' : 'DIAS') + '</small></div><div><b style="font-family:var(--f-head)">' + U.esc(g.orgao) + '</b><br>' +
-          g.itens.map(function (c) { return '<span class="dot" style="background:' + c.cor + '"></span> ' + U.esc(c.cargo.split(' (')[0].split(' —')[0]) + ' · ' + c.turno; }).join('<br>') +
-          '<br><small>' + U.DIAS[U.dow(g.data)] + ', ' + U.fmtDate(g.data) + ' ' + (g.confirmada ? '<span class="tag good">confirmada no edital</span>' : '<span class="tag mid">pendente de confirmação</span>') + '</small></div></div></div>';
-      });
-      h += '<div class="card"><h3>Acesso rápido</h3><div class="stack">' +
+      var insc = (C.datas || []).find(function (d) { return d.id === 'inscricao'; }), inscFim = insc && insc.data ? new Date(insc.data + 'T' + (insc.hora || '23:59') + ':00') : null, agora = new Date();
+      var h = '<section class="hero card"><div class="hero-main"><div class="hero-num">' + (left > 0 ? left : left === 0 ? 'Hoje' : '✓') + '</div><div class="hero-lbl">' + (left > 1 ? 'dias para a prova' : left === 1 ? 'dia para a prova — é amanhã!' : left === 0 ? 'é o dia da prova' : 'prova realizada') + '</div></div>' +
+        '<div class="hero-side"><p class="hero-why">' + U.esc(C.concurso.cargo) + ' · Câmara de Cuiabá · ' + C.concurso.vagas + ' vagas · prova em ' + U.fmtShort(ex) + ' (' + U.esc(C.prova.turno.toLowerCase()) + ', ' + U.esc(C.prova.duracao) + ')</p>' +
+        '<p class="hero-quote">“' + U.esc(fr.txt) + '”</p>' +
+        (inscFim && agora < inscFim ? (function () { var ms = inscFim - agora, d = Math.floor(ms / 86400000), hh = Math.floor(ms % 86400000 / 3600000); return '<div class="hero-insc"><b>' + d + ' d ' + hh + ' h</b> para o fim das inscrições (' + U.fmtShort(insc.data) + ', ' + insc.hora + ') · boleto até 01/12</div>'; })() : '') +
+        '</div></section>';
+      // hoje: meta, sequência e "conquistei hoje"
+      var pm = Math.min(100, hj.min / hj.meta * 100);
+      h += '<div class="grid g3 section"><div class="card"><div class="l-soft">Meta de hoje</div><div class="big">' + U.fmtMin(hj.min) + ' <small>de ' + U.fmtMin(hj.meta) + '</small></div><div class="prog" style="margin-top:8px"><i style="width:' + pm + '%"></i></div><small class="muted">' + (hj.bateu ? 'Meta batida! ♡' : 'Faltam ' + U.fmtMin(hj.meta - hj.min) + ' — um cartão de cada vez.') + '</small></div>' +
+        '<div class="card"><div class="l-soft">Sequência</div><div class="big">' + st + ' <small>' + (st === 1 ? 'dia seguido' : 'dias seguidos') + '</small></div><div class="dots">' + (function () { var o = ''; for (var i = 6; i >= 0; i--) { var d = U.addDays(t, -i); o += '<span class="sd ' + (M.estudouEm(d) ? 'on' : '') + '" title="' + U.fmtShort(d) + '">' + U.DIAS_C[U.dow(d)].charAt(0) + '</span>'; } return o; })() + '</div></div>' +
+        '<div class="card conquista"><div class="l-soft">Conquistei hoje</div><ul class="conq">' + [hj.min ? U.fmtMin(hj.min) + ' de estudo' : '', hj.q ? hj.q + ' questões (' + U.fmtPct(U.pct(hj.ac, hj.q)) + ')' : '', hj.cards ? hj.cards + ' flashcards revisados' : '', hj.arts ? hj.arts + ' artigos de lei seca' : '', hj.cartoes ? hj.cartoes + ' cartões do plano concluídos' : ''].filter(Boolean).map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+        (S.diario[t] && S.diario[t].fechado ? '<p class="carinho">' + U.esc(S.diario[t].msg) + '</p>' : (hj.min || hj.q || hj.cards) ? '<button class="btn sm" data-act="fechar">Fechar o dia ♡</button>' : '<small class="muted">Quando estudar, suas conquistas aparecem aqui.</small>') + '</div></div>';
+      // progresso do plano
+      h += '<div class="card section"><h3>Progresso do plano</h3>' + prog.map(function (p) { var pc = Math.min(100, p.v / p.max * 100); return '<div class="pbar"><div class="row between"><span>' + p.l + '</span><small class="muted">' + p.txt + '</small></div><div class="prog"><i style="width:' + pc + '%"></i></div></div>'; }).join('') + '</div>';
+      // cartões do dia + atalhos
+      h += '<div class="grid g2 section"><div class="card"><div class="card-h"><h3>Hoje — ' + U.DIAS[U.dow(t)] + ', ' + U.fmtShort(t) + '</h3><div class="right"><button class="btn sm ghost" data-go="plano">Planejamento</button></div></div>' +
+        (today.length ? today.map(function (a) { return '<div class="list-item row"><span class="tag ' + (a.status === 'feito' ? 'good' : '') + '">' + (a.status === 'feito' ? '✓ feito' : 'a fazer') + '</span>' + (a.disc ? ui.discTag(a.disc) : '') + '<span style="flex:1;min-width:0">' + U.esc(a.topicId ? SOS.topicLabel(a.topicId) : a.titulo) + (a.topicId && a.titulo ? '<br><small class="muted">' + U.esc(a.titulo) + '</small>' : '') + '</span><small>' + U.esc(a.metodo) + ' · ' + U.fmtMin(a.planMin) + '</small></div>'; }).join('') : '<div class="empty">Nada planejado para hoje.<br><button class="btn sm" style="margin-top:8px" data-go="plano?replan=1">Montar o plano até a prova</button></div>') + '</div>' +
+        '<div class="card"><h3>Para hoje</h3><div class="stack">' +
         '<button class="btn" style="width:100%;justify-content:space-between" data-go="erros?hoje=1">Revisar meus erros de hoje <span class="badge soft">' + errDue + '</span></button>' +
         '<button class="btn" style="width:100%;justify-content:space-between" data-go="flashcards?revisar=1">Revisar flashcards de hoje <span class="badge soft">' + cardsDue + '</span></button>' +
-        '<button class="btn ghost" style="width:100%;justify-content:space-between" data-go="revisoes">Fila de revisões <span class="badge soft">' + rq.length + '</span></button>' +
-        '</div></div></div>';
-
-      // KPIs
-      h += '<div class="grid g4 section">' +
-        kpi('Edital concluído', U.fmtPct(prog.pct), prog.finalizados + ' de ' + prog.total + ' tópicos · ' + U.fmtPct(prog.pctIni) + ' iniciados', '<div class="prog" style="margin-top:6px"><i style="width:' + prog.pct + '%"></i></div>') +
-        kpi('Horas na semana', U.fmtMin(wk.min), 'Mês: ' + U.fmtMin(mo.min)) +
-        kpi('Questões resolvidas', all.total, all.erros + ' erros no total') +
-        kpi('Aproveitamento geral', ui.pctBadge(all.pct), 'Semana: ' + U.fmtPct(wk.pct)) +
-        '</div><div class="grid g4 section">' +
-        kpi('Conteúdos pendentes', pend, 'tópicos não iniciados') +
-        kpi('Revisões atrasadas', atrasadas, rq.length + ' na fila de hoje') +
-        kpi('Flashcards para revisar', cardsDue, S.flashcards.length + ' cartões no total') +
-        kpi('Erros recorrentes', recorr, 'Discursivas realizadas: ' + discRealiz) +
-        '</div>';
-
-      // hoje + recomendações
-      h += '<div class="grid g2 section"><div class="card"><div class="card-h"><h3>Hoje — ' + U.DIAS[U.dow(t)] + ', ' + U.fmtDate(t) + '</h3><div class="right"><button class="btn sm ghost" data-go="plano">Abrir planejamento</button></div></div>';
-      if (!today.length) h += '<div class="empty">Nenhuma atividade planejada para hoje.<br><button class="btn sm" style="margin-top:8px" data-go="plano?gerar=1">Gerar plano da semana</button></div>';
-      else h += today.map(function (a) { return '<div class="list-item row"><span class="tag ' + (a.status === 'feito' ? 'good' : '') + '">' + ({ nao: 'A fazer', andamento: 'Em andamento', revisar: 'Revisar', feito: 'Finalizado', naofeito: 'Não realizada' }[a.status] || a.status) + '</span> ' + (a.disc ? ui.discTag(a.disc) : '') + ' <span>' + U.esc(a.topicId ? SOS.topicLabel(a.topicId) : a.titulo) + '</span><span class="spacer"></span><small>' + a.metodo + ' · ' + U.fmtMin(a.planMin) + '</small></div>'; }).join('');
-      h += '</div><div class="card"><h3>O que fazer agora</h3>' + advice(conc, rq, errDue, cardsDue) + '</div></div>';
-
-      // melhor / pior
-      h += '<div class="grid g2 section"><div class="card"><h3>Melhor desempenho</h3>' + discRows(bd.slice(0, 4)) + '</div><div class="card"><h3>Pior desempenho</h3>' + discRows(bd.slice().reverse().slice(0, 4)) + '<small class="muted">Mínimo de 10 questões por disciplina para entrar no ranking.</small></div></div>';
-
-      // gráficos
-      var labels = wkly.map(function (w) { return w.label; });
-      h += '<div class="grid g2 section">' +
-        '<div class="card"><h3>Evolução dos acertos (por semana)</h3>' + ui.lineChart([{ name: '% acertos', color: 'var(--primary)', data: wkly.map(function (w) { return w.pct; }) }], { labels: labels, max: 100, refLine: 80, fmt: function (v) { return Math.round(v) + '%'; } }) + '</div>' +
-        '<div class="card"><h3>Horas estudadas (por semana)</h3>' + ui.barChart(labels, wkly.map(function (w) { return Math.round(w.min / 6) / 10; }), { fmt: function (v) { return v + 'h'; } }) + '</div>' +
-        '<div class="card"><h3>Desempenho por disciplina</h3>' + ui.hbars(E.byDisc(conc).filter(function (d) { return d.total > 0; }).sort(function (a, b) { return b.total - a.total; }).map(function (d) { return { label: SOS.disc(d.disc).nome, value: d.pct, color: ui.pctColor(d.pct), text: U.fmtPct(d.pct) }; })) + '</div>' +
-        '<div class="card"><h3>Avanço no edital</h3>' + ui.hbars(S.concursos.map(function (c) { var p = E.progresso(c.id); return { label: c.sigla, value: p.pct, color: c.cor, text: Math.round(p.pct) + '%' }; })) + '<small class="muted">Percentual de tópicos finalizados. Tópicos compartilhados contam para todos os concursos a que pertencem.</small></div>' +
-        '<div class="card"><h3>Erros registrados (por semana)</h3>' + ui.barChart(labels, wkly.map(function (w) { return w.errosCad; }), { color: 'var(--bad)' }) + '</div>' +
-        '<div class="card"><h3>Evolução das discursivas (nota média)</h3>' + ui.lineChart([{ name: 'Nota', color: '#0891b2', data: wkly.map(function (w) { return w.discNota; }) }], { labels: labels, max: 100, refLine: 40 }) + '</div>' +
-        '</div>';
+        (drafts ? '<button class="btn ghost" style="width:100%;justify-content:space-between" data-go="flashcards?aprovar=1">Cartões para aprovar <span class="badge soft">' + drafts + '</span></button>' : '') +
+        '<button class="btn ghost" style="width:100%;justify-content:space-between" data-go="revisoes">Fila de revisões <span class="badge soft">' + rq.length + '</span></button></div></div></div>';
+      // gráficos essenciais
+      var wkly = E.weekly('all', 8), labels = wkly.map(function (w) { return w.label; });
+      h += '<div class="grid g2 section"><div class="card"><h3>Evolução dos acertos</h3>' + ui.lineChart([{ name: '% acertos', color: 'var(--primary)', data: wkly.map(function (w) { return w.pct; }) }], { labels: labels, max: 100, refLine: 80, fmt: function (v) { return Math.round(v) + '%'; } }) + '</div>' +
+        '<div class="card"><h3>Horas por semana</h3>' + ui.barChart(labels, wkly.map(function (w) { return Math.round(w.min / 6) / 10; }), { fmt: function (v) { return v + 'h'; } }) + '</div>' +
+        '<div class="card"><h3>Desempenho por disciplina</h3>' + ui.hbars(E.byDisc('all').filter(function (d) { return d.total > 0; }).sort(function (a, b) { return b.total - a.total; }).map(function (d) { return { label: SOS.disc(d.disc).nome, value: d.pct, color: ui.pctColor(d.pct), text: U.fmtPct(d.pct) }; })) + '</div>' +
+        '<div class="card"><h3>Discursivas</h3>' + ui.lineChart([{ name: 'Nota', color: 'var(--accent)', data: wkly.map(function (w) { return w.discNota; }) }], { labels: labels, max: 100, refLine: 40 }) + '</div></div>';
       el.innerHTML = h;
-      el.onclick = function (e) { var g = e.target.closest('[data-go]'); if (g) { var p = g.dataset.go.split('?'); SOS.app.go(p[0], p[1]); } };
+      el.onclick = function (e) {
+        var g = e.target.closest('[data-go]'); if (g) { var p = g.dataset.go.split('?'); return SOS.app.go(p[0], p[1]); }
+        if (e.target.closest('[data-act=fechar]')) {
+          var msgs = ['Você apareceu para você hoje. Isso é enorme. Descanse. ♡', 'Mais um dia de dedicação guardado. Que orgulho!', 'Dia fechado com carinho. Amanhã a gente continua.', 'Você está construindo a sua vaga, dia após dia. ♡', 'Hoje valeu. Agora é água, comida boa e sono.'];
+          S.diario[t] = { fechado: true, msg: msgs[M.diaDoAno(t) % msgs.length], resumo: hj };
+          SOS.log('Dia fechado', U.fmtMin(hj.min) + ' · ' + hj.q + ' questões'); SOS.save(); SOS.app.render();
+        }
+      };
     }
   };
   function kpi(l, v, s, extra) { return '<div class="card kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + (s || '') + '</div>' + (extra || '') + '</div>'; }

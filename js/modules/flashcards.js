@@ -12,6 +12,7 @@
     render: function (el, q) {
       if (q && q.get('revisar')) { history.replaceState(null, '', '#flashcards'); setTimeout(review, 30); }
       if (q && q.get('sug')) { tab = 'sug'; history.replaceState(null, '', '#flashcards'); }
+      if (q && q.get('aprovar')) { tab = 'aprovar'; history.replaceState(null, '', '#flashcards'); }
       var cs = SOS.S.flashcards.filter(inConc);
       var st = { novo: 0, revisao: 0, atrasado: 0, aprendido: 0, dificil: 0 };
       cs.forEach(function (c) { st[E.cardState(c)]++; });
@@ -20,13 +21,15 @@
       var okp = U.pct(logs.filter(function (l) { return l.r !== 'errei'; }).length, logs.length);
       var sug = E.suggestCardsFromErrors();
       var h = '<div class="row" style="margin-bottom:14px"><button class="btn" data-act="review">Revisar flashcards de hoje <span class="badge soft">' + due + '</span></button><span class="spacer"></span><button class="btn ghost" data-act="new">+ Novo flashcard</button></div>';
-      h += '<div class="tabs">' + [['painel', 'Painel'], ['lista', 'Cartões e decks'], ['sug', 'Sugestões (' + sug.length + ')'], ['io', 'Exportar / Importar']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      h += '<div class="tabs">' + [['painel', 'Painel'], ['aprovar', 'Para aprovar (' + (SOS.S.cardDrafts || []).length + ')'], ['lista', 'Cartões e decks'], ['sug', 'Sugestões (' + sug.length + ')'], ['io', 'Exportar / Importar']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
       if (tab === 'painel') {
         h += '<div class="grid g4">' + k('Total de cartões', cs.length) + k('Novos', st.novo) + k('Para revisar hoje', due) + k('Atrasados', st.atrasado) + '</div><div class="grid g4 section">' + k('Aprendidos', st.aprendido, '≥ 3 acertos seguidos e intervalo ≥ 15 dias') + k('Com dificuldade', st.dificil) + k('% de acertos', ui.pctBadge(okp), logs.length + ' revisões') + k('Originados de erros', cs.filter(function (c) { return c.erroId; }).length) + '</div>';
         var wk = E.weekly(SOS.app.conc, 8);
         h += '<div class="grid g2 section"><div class="card"><h3>Evolução semanal — % de acertos</h3>' + ui.lineChart([{ name: '% acertos', color: '#16a34a', data: wk.map(function (w) { return w.cardPct; }) }], { labels: wk.map(function (w) { return w.label; }), max: 100, fmt: function (v) { return Math.round(v) + '%'; } }) + '</div><div class="card"><h3>Revisões por semana</h3>' + ui.barChart(wk.map(function (w) { return w.label; }), wk.map(function (w) { return w.cardRev; }), { color: '#16a34a' }) + '</div></div>';
         h += '<div class="card section"><h3>Como funciona a revisão</h3><p style="margin:0">Depois de ver a resposta, avalie: <b>Errei</b> (volta para ' + SOS.S.settings.intervalosCard[0] + ' dia e reduz a facilidade), <b>Difícil</b> (intervalo cresce pouco), <b>Bom</b> (segue os degraus ' + SOS.S.settings.intervalosCard.join(', ') + ' dias e depois multiplica pela facilidade) ou <b>Fácil</b> (pula um degrau). Um cartão só conta como aprendido após 3 acertos seguidos e intervalo de 15 dias ou mais.</p></div>';
-      } else if (tab === 'lista') h += lista(cs);
+        h += porAssunto(cs);
+      } else if (tab === 'aprovar') h += aprovar();
+      else if (tab === 'lista') h += lista(cs);
       else if (tab === 'sug') h += sugestoes(sug);
       else h += io();
       el.innerHTML = h;
@@ -36,6 +39,94 @@
     },
     fromError: fromError, review: review
   };
+  /* fila do dia por assunto (um assunto = um item) */
+  function porAssunto(cs) {
+    var by = {};
+    cs.filter(E.cardDue).forEach(function (c) { var k2 = c.topicId || '—'; by[k2] = (by[k2] || 0) + 1; });
+    var ks = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
+    return '<div class="card section"><h3>Fila de hoje por assunto</h3>' + (ks.length ? ks.map(function (k2) { var t = SOS.topic(k2); return '<div class="list-item row">' + (t ? ui.discTag(t.disc) : '') + '<span>' + U.esc(t ? t.titulo : 'Sem assunto') + '</span><span class="spacer"></span><span class="tag">' + by[k2] + ' cartão(ões)</span><button class="btn xs" data-revtopic="' + U.esc(k2 === '—' ? '' : k2) + '">Revisar</button></div>'; }).join('') : '<div class="empty">Nenhum cartão para hoje. ♡</div>') + '</div>';
+  }
+  function aprovar() {
+    var ds = SOS.S.cardDrafts || [], ia = !!SOS.S.settings.iaEndpoint;
+    var h = '<div class="alert info" style="display:block">Cartões gerados <b>só das questões que você errou</b> ou marcou como “chutei/em dúvida”. Frente curta, verso com resposta, fundamento e a explicação do erro em 2 linhas — um conceito por cartão, sem repetir. Nada entra no baralho sem a sua aprovação.' + (ia ? '' : ' <br><small>Geração por regras (sem IA). Para usar IA, configure uma rota de servidor em Configurações — a chave nunca fica no navegador.</small>') + '</div>';
+    h += '<div class="row" style="margin-bottom:10px"><button class="btn ghost sm" data-act="dgen">Gerar das questões salvas</button>' + (ia ? '<button class="btn ghost sm" data-act="dia">Melhorar com IA</button>' : '') + '<span class="spacer"></span>' + (ds.length ? '<button class="btn sm good" data-act="dall">Aprovar todos</button>' : '') + '</div>';
+    if (!ds.length) return h + '<div class="empty">Nada para aprovar agora.</div>';
+    return h + ds.map(function (d) {
+      var t = SOS.topic(d.topicId);
+      return '<div class="card" style="margin-bottom:10px" data-draft="' + d.id + '"><div class="row" style="margin-bottom:6px">' + (t ? ui.discTag(t.disc) : '') + '<small class="muted">' + U.esc(t ? t.titulo : '') + ' · ' + U.esc(d.origem || '') + (d.ia ? ' · IA' : '') + '</small></div><div class="form">' +
+        '<label class="f full"><span>Frente</span><textarea name="fr" rows="2">' + U.esc(d.frente) + '</textarea></label>' +
+        '<label class="f full"><span>Verso — resposta</span><textarea name="vs" rows="2">' + U.esc(d.verso) + '</textarea></label>' +
+        '<label class="f"><span>Fundamento (artigo ou regra)</span><input name="fu" value="' + U.esc(d.fundamento || '') + '"></label>' +
+        '<label class="f"><span>Explicação do erro (2 linhas)</span><textarea name="ex" rows="2">' + U.esc(d.explicacao || '') + '</textarea></label></div>' +
+        '<div class="row" style="margin-top:8px"><button class="btn xs good" data-dok="' + d.id + '">Aprovar</button><button class="btn xs ghost" data-dno="' + d.id + '">Descartar</button></div></div>';
+    }).join('');
+  }
+  function readDraft(id) {
+    var el = document.querySelector('[data-draft="' + id + '"]'); if (!el) return null;
+    return { frente: el.querySelector('[name=fr]').value, verso: el.querySelector('[name=vs]').value, fundamento: el.querySelector('[name=fu]').value, explicacao: el.querySelector('[name=ex]').value };
+  }
+
+  /* ---------- geração de cartões a partir das questões salvas ---------- */
+  var C = SOS.cards = {};
+  function firstSentence(s, max) { s = String(s || '').replace(/\s+/g, ' ').trim(); var m = s.match(/^(.{20,}?[.!?])(\s|$)/); s = m ? m[1] : s; return s.length > (max || 170) ? s.slice(0, (max || 170) - 1) + '…' : s; }
+  C.addDraft = function (d) {
+    var S = SOS.S; S.cardDrafts = S.cardDrafts || [];
+    if (!d || !d.frente || !d.verso) return false;
+    if (d.ref && (S.cardDrafts.some(function (x) { return x.ref === d.ref; }) || S.flashcards.some(function (x) { return x.ref === d.ref; }))) return false;
+    if (E.findDuplicateCard(d.frente) || S.cardDrafts.some(function (x) { return U.similar(x.frente, d.frente) >= 0.75; })) return false;
+    S.cardDrafts.push(Object.assign({ id: U.uid('dr'), criado: U.today() }, d));
+    return true;
+  };
+  C.fromQuestion = function (q) {
+    if (!q || !q.enun || !q.gab || !(q.alts || []).length) return null;
+    var alt = function (l) { var a = q.alts.find(function (x) { return x.l === l; }); return a ? a.t : ''; };
+    var ce = q.alts.length === 2 && /^certo$/i.test((q.alts[0].t || '').trim());
+    var stem = q.enun.replace(/\s+/g, ' ').replace(/\b(assinale|marque) a (alternativa|op[cç][aã]o)[^.?:]*[.?:]?\s*$/i, '').trim();
+    if (stem.length > 220) stem = stem.slice(0, 217) + '…';
+    var frente = ce ? 'Certo ou errado? ' + stem : (/[?:]$/.test(stem) ? stem : stem + ' → ?');
+    var verso = ce ? (q.gab === 'C' ? 'Certo' : 'Errado') : q.gab + ') ' + alt(q.gab);
+    var art = (q.com || '').match(/\bart(?:igo)?\.?\s*\d+[º°o]?(?:[^.;\n]{0,60})?/i);
+    var exp = (q.marc && q.marc !== q.gab ? 'Você marcou ' + q.marc + (ce ? '' : ') ' + alt(q.marc).slice(0, 60)) + '. ' : q.marca ? 'Você acertou, mas marcou como “' + q.marca + '”. ' : '') + firstSentence(q.com, 160);
+    return { frente: frente, verso: verso, fundamento: art ? art[0].trim() : '', explicacao: exp.trim(), topicId: q.topicId && q.topicId !== 'none' ? q.topicId : '', origem: q.v > 0 ? 'Erro' : 'Questão em dúvida', ref: 'q:' + q.id, tecId: q.id };
+  };
+  C.autoGenerate = function (forcar) {
+    var S = SOS.S, st = SOS.tec ? SOS.tec.st() : null, n = 0; if (!st) return 0;
+    st.cardFeito = st.cardFeito || {};
+    SOS.tec.list().forEach(function (q) {
+      if (!(q.v > 0 || q.marca) || st.cardFeito[q.id]) return;
+      var d = C.fromQuestion(q); if (!d) return;
+      st.cardFeito[q.id] = 1;
+      if (C.addDraft(d)) n++;
+    });
+    return n;
+  };
+  C.approve = function (id, edit) {
+    var S = SOS.S, d = (S.cardDrafts || []).find(function (x) { return x.id === id; }); if (!d) return;
+    if (edit) Object.assign(d, edit);
+    var t = SOS.topic(d.topicId), er = d.tecId ? S.erros.find(function (e) { return e.tecId === d.tecId; }) : null;
+    var c = { id: U.uid('f'), tipo: 'Pergunta objetiva', frente: d.frente.trim(), verso: d.verso.trim(), explicacao: (d.explicacao || '').trim(), fundamento: (d.fundamento || '').trim(), pegadinha: '', topicId: d.topicId || '', concursos: t ? t.concursos.slice() : ['TEC'], banca: 'Selecon', origem: er ? 'Erro' : (d.origem || 'Conteúdo importante'), erroId: er ? er.id : null, ref: d.ref || null, tags: '', srs: E.cardNew(), log: [], criadoEm: U.today() };
+    if (!c.frente || !c.verso) return ui.toast('Frente e verso não podem ficar vazios.', 'bad');
+    S.flashcards.push(c); if (er) { er.flashcardIds = er.flashcardIds || []; er.flashcardIds.push(c.id); }
+    S.cardDrafts = S.cardDrafts.filter(function (x) { return x.id !== id; });
+    SOS.log('Flashcard aprovado', c.frente.slice(0, 60)); SOS.save();
+  };
+  C.discard = function (id) { SOS.S.cardDrafts = (SOS.S.cardDrafts || []).filter(function (x) { return x.id !== id; }); SOS.save(); };
+  /* IA: o navegador só chama a SUA rota de servidor; a chave da API fica lá, em variável de ambiente */
+  C.generateAI = function () {
+    var url = SOS.S.settings.iaEndpoint, st = SOS.tec.st();
+    var qs = (SOS.S.cardDrafts || []).filter(function (d) { return d.tecId && !d.ia; }).map(function (d) { var q = st.qs[d.tecId]; return q && { id: q.id, enunciado: q.enun, alternativas: q.alts, gabarito: q.gab, marcada: q.marc, comentario: q.com, assunto: q.ass }; }).filter(Boolean);
+    if (!url || !qs.length) return ui.toast(url ? 'Nenhum cartão gerado por regras para melhorar.' : 'Configure a rota de IA em Configurações.', 'mid');
+    ui.toast('Enviando ' + qs.length + ' questão(ões) para a sua rota de IA…');
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questoes: qs }) }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) {
+      var n = 0;
+      (j.cards || []).forEach(function (c) {
+        var d = SOS.S.cardDrafts.find(function (x) { return x.tecId === c.id; }); if (!d || !c.frente || !c.verso) return;
+        Object.assign(d, { frente: c.frente, verso: c.verso, fundamento: c.fundamento || d.fundamento, explicacao: c.explicacao || d.explicacao, ia: true }); n++;
+      });
+      SOS.save(); SOS.app.render(); ui.toast(n + ' cartão(ões) reescrito(s) pela IA — revise antes de aprovar.', 'good');
+    }).catch(function (e) { ui.toast('A rota de IA falhou: ' + e.message, 'bad', 6000); });
+  };
+
   function k(l, v, s) { return '<div class="card kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + '</div>' : '') + '</div>'; }
 
   function lista(cs) {
@@ -78,6 +169,12 @@
     var x;
     if ((x = e.target.closest('[data-tab]'))) { tab = x.dataset.tab; return SOS.app.render(); }
     if (e.target.closest('[data-act=review]')) return review();
+    if ((x = e.target.closest('[data-revtopic]'))) return review(x.dataset.revtopic);
+    if ((x = e.target.closest('[data-dok]'))) { SOS.cards.approve(x.dataset.dok, readDraft(x.dataset.dok)); return SOS.app.render(); }
+    if ((x = e.target.closest('[data-dno]'))) { SOS.cards.discard(x.dataset.dno); return SOS.app.render(); }
+    if (e.target.closest('[data-act=dall]')) { (SOS.S.cardDrafts || []).slice().forEach(function (d) { SOS.cards.approve(d.id, readDraft(d.id)); }); ui.toast('Cartões aprovados e incluídos no baralho.', 'good'); return SOS.app.render(); }
+    if (e.target.closest('[data-act=dgen]')) { var n = SOS.cards.autoGenerate(true); ui.toast(n ? n + ' cartão(ões) novo(s) gerado(s) das questões salvas.' : 'Nenhuma questão salva nova para virar cartão.', n ? 'good' : 'mid'); return SOS.app.render(); }
+    if (e.target.closest('[data-act=dia]')) return SOS.cards.generateAI();
     if (e.target.closest('[data-act=new]')) return editor([blank()], null);
     if (e.target.closest('[data-act=export]')) return exportCSV();
     if ((x = e.target.closest('[data-edit]'))) return editor([find(x.dataset.edit)], null, true);
@@ -162,8 +259,8 @@
   }
 
   /* sessão de revisão */
-  function review() {
-    var q = SOS.S.flashcards.filter(function (c) { return E.cardDue(c) && inConc(c); }).sort(function (a, b) { return a.srs.due < b.srs.due ? -1 : 1; });
+  function review(topicId) {
+    var q = SOS.S.flashcards.filter(function (c) { return E.cardDue(c) && inConc(c) && (!topicId || c.topicId === topicId); }).sort(function (a, b) { return a.srs.due < b.srs.due ? -1 : 1; });
     if (!q.length) { ui.toast('Nenhum flashcard para revisar hoje. 🎉', 'good'); return; }
     var i = 0, res = { errei: 0, dificil: 0, bom: 0, facil: 0 };
     var m = ui.modal({ title: 'Revisar flashcards de hoje', wide: true, body: '<div id="fcr" class="fc"></div>', buttons: [{ label: 'Encerrar', cls: 'ghost' }], onClose: function () { SOS.app.render(); }, noFocus: true });

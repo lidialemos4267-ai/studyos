@@ -3,10 +3,10 @@
   var SOS = window.SOS, U = SOS.U, ui = SOS.ui, E = SOS.E;
   var app = SOS.app = {};
   app.NAV = [
-    ['dashboard', 'Dashboard', '◎'], ['concursos', 'Concursos', '◆'], ['edital', 'Edital verticalizado', '☰'],
-    ['plano', 'Planejamento', '▦'], ['desempenho', 'Questões e desempenho', '✓'], ['tec', 'Banco de questões (TEC)', '⊞'], ['erros', 'Caderno de Erros', '✎'],
-    ['flashcards', 'Flashcards', '❏'], ['revisoes', 'Revisões', '↻'], ['discursivas', 'Discursivas', '¶'],
-    ['simulados', 'Simulados', '⏱'], ['leis', 'Lei seca e jurisprudência', '§'], ['estatisticas', 'Estatísticas', '▲'], ['config', 'Configurações', '⚙']
+    ['dashboard', 'Início', '♡'], ['plano', 'Planejamento', '✿'], ['leis', 'Lei seca', '§'], ['flashcards', 'Flashcards', '❀'],
+    ['erros', 'Caderno de Erros', '✎'], ['revisoes', 'Revisões', '↻'], ['desempenho', 'Questões e desempenho', '✓'], ['tec', 'Banco de questões (TEC)', '❖'],
+    ['discursivas', 'Discursivas', '¶'], ['simulados', 'Simulados', '◷'], ['edital', 'Edital verticalizado', '☰'], ['concursos', 'Concurso', '✦'],
+    ['estatisticas', 'Estatísticas', '✧'], ['config', 'Configurações', '⚙']
   ];
   app.conc = 'all';
   try { app.conc = localStorage.getItem('studyos.ui.conc') || 'all'; } catch (e) { /* ok */ }
@@ -19,7 +19,7 @@
     return {
       revisoes: E.revisionQueue(t).length,
       erros: SOS.S.erros.filter(E.erroDue).length,
-      flashcards: SOS.S.flashcards.filter(E.cardDue).length,
+      flashcards: SOS.S.flashcards.filter(E.cardDue).length + (SOS.S.cardDrafts || []).length,
       plano: E.pendingActivities().length,
       tec: SOS.tec ? SOS.tec.pendingAssuntos().length : 0
     };
@@ -50,7 +50,8 @@
     document.title = meta[1] + ' · StudyOS';
     var sel = ui.$('#concFilter');
     sel.innerHTML = ui.concOptions(app.conc, true);
-    sel.style.display = v.noFilter ? 'none' : '';
+    sel.style.display = v.noFilter || SOS.S.concursos.length < 2 ? 'none' : '';
+    if (SOS.S.concursos.length < 2) app.conc = 'all';
     app.renderNav(); app.renderBanner();
     var el = ui.$('#view');
     try { v.render(el, r.q); }
@@ -64,6 +65,13 @@
   document.addEventListener('DOMContentLoaded', function () {
     SOS.load();
     app.applyTheme();
+    // migração v3: recalcula o plano até a prova e mostra (uma vez) o relatório
+    if (SOS.S.replanPendente) {
+      var r = E.replanAll(); SOS.mergeDayActivities(SOS.S, { sessoes: [], atividades: [] });
+      if (SOS.S.migr3Relatorio) SOS.S.migr3Relatorio.replan = r;
+      delete SOS.S.replanPendente; SOS.saveNow();
+    }
+    if (SOS.cards) { if (SOS.cards.autoGenerate()) SOS.saveNow(); }
     window.addEventListener('hashchange', function () { app.render(); window.scrollTo(0, 0); closeMenu(); });
     ui.$('#concFilter').addEventListener('change', function (e) { app.conc = e.target.value; try { localStorage.setItem('studyos.ui.conc', app.conc); } catch (x) { /* ok */ } app.render(); });
     ui.$('#quickSession').addEventListener('click', function () { ui.sessionModal(); });
@@ -75,5 +83,24 @@
     var day = U.today();
     setInterval(function () { if (U.today() !== day) { day = U.today(); app.render(); } }, 60000);
     app.render();
+    var R = SOS.S.migr3Relatorio;
+    if (R && !SOS.S.migr3Visto && (SOS.S.sessoes.length || SOS.S.atividades.some(function (a) { return !a.gerado; }) || R.removidosAnalista.length)) setTimeout(function () { app.migrationReport(); }, 300);
+    else if (R && !SOS.S.migr3Visto) { SOS.S.migr3Visto = true; SOS.save(); }
   });
+  app.migrationReport = function () {
+    var R = SOS.S.migr3Relatorio, amb = R.sessoes.filter(function (x) { return x.ambiguo.length; }).concat(R.atividades.filter(function (x) { return x.ambiguo.length; }));
+    var li = function (x) { return '<li>' + U.fmtDate(x.data) + ' — ' + U.esc(SOS.topicLabel(x.topicId)) + ' (' + x.n + ' itens): ' + U.esc(x.ambiguo.join('; ')) + '</li>'; };
+    ui.modal({
+      title: 'Seu StudyOS foi atualizado ♡',
+      body: '<ul style="padding-left:18px;margin-top:0">' +
+        '<li>Agora o foco é só <b>Técnico Legislativo · Câmara de Cuiabá · prova em ' + U.fmtDate(SOS.CONFIG.prova.data) + '</b>.</li>' +
+        '<li>' + R.removidosAnalista.length + ' tópico(s) exclusivo(s) do Analista saíram do plano e do edital' + (R.arquivadosChapada ? '; ' + R.arquivadosChapada + ' tópico(s) de Chapada foram arquivados (não apagados)' : '') + '.</li>' +
+        '<li>Um cartão por assunto por dia: ' + R.sessoes.length + ' grupo(s) de registros e ' + R.atividades.length + ' grupo(s) de atividades foram unidos (tempos e questões somados, observações juntadas).</li>' +
+        (R.replan ? '<li>Plano recalculado até a prova: ' + R.replan.novas + ' cartões novos (' + R.replan.removidas + ' gerados antes foram substituídos).</li>' : '') +
+        (R.despoluidas ? '<li>Banco de questões: acertos comuns agora guardam só o contador.</li>' : '') +
+        (R.orfaos ? '<li>' + R.orfaos + ' registro(s) de estudo eram de assuntos que saíram; eles continuam guardados.</li>' : '') + '</ul>' +
+        (amb.length ? '<div class="alert mid" style="display:block"><b>Confira estes casos (podem ter sido contados duas vezes):</b><ul style="margin:6px 0 0;padding-left:18px">' + amb.map(li).join('') + '</ul><small>Corrija em Questões e desempenho, se necessário.</small></div>' : '<p class="muted">Nenhum caso ambíguo encontrado.</p>'),
+      buttons: [{ label: 'Entendi', onClick: function () { SOS.S.migr3Visto = true; SOS.save(); } }]
+    });
+  };
 })();

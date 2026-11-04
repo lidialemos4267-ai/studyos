@@ -23,7 +23,7 @@
           '<div class="prog"><i style="width:' + p.pct + '%;background:' + c.cor + '"></i></div><small class="muted">' + p.finalizados + '/' + p.total + ' tópicos finalizados</small>' +
           '<hr><table><tbody>' +
           row('Escolaridade', c.escolaridade) + row('Remuneração', c.remuneracao) + row('Jornada', c.jornada) + row('Vagas', c.vagas) + row('Duração', c.duracao) + row('Edital', c.edital) +
-          '</tbody></table><hr><h3>Etapas</h3><ul style="margin:0 0 10px;padding-left:18px">' + (c.etapas || []).map(function (e) { return '<li>' + U.esc(e) + '</li>'; }).join('') + '</ul>' +
+          '</tbody></table>' + (c.cronograma ? '<hr><h3>Cronograma <small class="muted">(arquivo js/config-concurso.js)</small></h3><table><tbody>' + c.cronograma.map(function (x) { return '<tr><td>' + U.esc(x.rotulo) + '</td><td>' + (x.data ? '<b>' + U.fmtDate(x.data) + '</b>' + (x.hora ? ' · ' + U.esc(x.hora) : '') : '—') + '<br><small class="' + (x.data ? 'muted' : 'tag mid') + '">' + U.esc(x.status) + '</small></td></tr>'; }).join('') + '</tbody></table>' : '') + '<hr><h3>Etapas</h3><ul style="margin:0 0 10px;padding-left:18px">' + (c.etapas || []).map(function (e) { return '<li>' + U.esc(e) + '</li>'; }).join('') + '</ul>' +
           '<h3>Prova objetiva — ' + c.totalQuestoes + ' questões · ' + c.totalPontos + ' pontos</h3><div class="tbl-wrap"><table><thead><tr><th>Área</th><th class="num">Q.</th><th class="num">Pts/q.</th><th class="num">Total</th></tr></thead><tbody>' +
           Object.keys(c.areas).map(function (k) { var a = c.areas[k]; var discs = c.secoes.filter(function (s) { return s.area === k; }).map(function (s) { return s.nome; }); return '<tr><td><b>' + U.esc(a.nome) + '</b>' + (discs.length > 1 ? '<br><small class="muted">' + U.esc(discs.join('; ')) + '</small>' : '') + '</td><td class="num">' + a.q + '</td><td class="num">' + String(a.v).replace('.', ',') + '</td><td class="num">' + String(Math.round(a.q * a.v * 100) / 100).replace('.', ',') + '</td></tr>'; }).join('') +
           '</tbody></table></div><small class="muted">Questões por disciplina: ' + U.esc(c.questoesPorDisciplina || '—') + '</small>' +
@@ -116,8 +116,9 @@
   SOS.views.edital = {
     render: function (el, q) {
       if (q && q.get('t')) { var tid = q.get('t'); setTimeout(function () { SOS.views.edital.openTopic(tid); }, 30); history.replaceState(null, '', '#edital'); }
-      var conc = SOS.app.conc;
-      var h = '<div class="tabs"><button class="tab ' + (tab === 'vert' ? 'active' : '') + '" data-tab="vert">Edital verticalizado</button><button class="tab ' + (tab === 'mapa' ? 'active' : '') + '" data-tab="mapa">Mapa de Conteúdos Compartilhados</button></div>';
+      var conc = SOS.S.concursos.length === 1 ? SOS.S.concursos[0].id : SOS.app.conc;
+      if (SOS.S.concursos.length === 1) tab = 'vert';
+      var h = SOS.S.concursos.length > 1 ? '<div class="tabs"><button class="tab ' + (tab === 'vert' ? 'active' : '') + '" data-tab="vert">Edital verticalizado</button><button class="tab ' + (tab === 'mapa' ? 'active' : '') + '" data-tab="mapa">Mapa de Conteúdos Compartilhados</button></div>' : '';
       if (tab === 'mapa') h += mapaComp();
       else {
         h += '<div class="row" style="margin-bottom:12px"><input type="search" data-f="q" placeholder="Buscar tópico…" value="' + U.esc(fSearch) + '" style="max-width:260px"><select data-f="status"><option value="">Todos os status</option>' + ui.opts(Object.keys(E.STATUS).map(function (k) { return [k, E.STATUS[k]]; }), fStatus) + '</select><span class="spacer"></span><button class="btn ghost sm" data-act="bulk">+ Adicionar em lote</button><button class="btn sm" data-act="add">+ Novo tópico</button></div>';

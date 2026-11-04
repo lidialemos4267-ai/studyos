@@ -19,7 +19,7 @@
     var t = a.topicId && SOS.topic(a.topicId), p = actPct(a), late = a.data < U.today() && (a.status === 'nao' || a.status === 'andamento');
     return '<div class="kcard ' + (t ? 'imp' + t.imp : '') + (a.status === 'feito' ? ' done' : '') + (late || a.status === 'naofeito' ? ' late' : '') + '" draggable="true" data-id="' + a.id + '">' +
       '<div class="k-m">' + (a.disc ? ui.discTag(a.disc) : '<span class="tag">' + U.esc(a.metodo) + '</span>') + (t ? ui.concTags(t.concursos) : '') + '</div>' +
-      '<div class="k-t">' + U.esc(actTitle(a)) + '</div>' +
+      '<div class="k-t">' + U.esc(actTitle(a)) + '</div>' + (a.topicId && a.titulo ? '<div class="k-m" style="margin-bottom:4px">' + U.esc(a.titulo) + '</div>' : '') +
       '<div class="k-m"><span>' + U.esc(a.metodo) + '</span>·<span>' + U.fmtMin(a.planMin) + '</span>' + (t ? '·<span>' + E.IMP[t.imp] + '</span>' : '') + (view === 'kanban' ? '·<span>' + U.fmtShort(a.data) + '</span>' : '') + (p != null ? ' ' + ui.pctBadge(p) : '') + (a.status === 'naofeito' ? ' <span class="tag bad">não realizada</span>' : late ? ' <span class="tag bad">atrasada</span>' : '') + (a.obs ? ' <span title="' + U.esc(a.obs) + '">📝</span>' : '') + '</div>' +
       '<div class="k-a">' +
       (a.status !== 'feito' ? '<button class="btn xs good" data-done="' + a.id + '">Concluir</button>' : '') +
@@ -36,7 +36,7 @@
       var h = '<div class="row" style="margin-bottom:14px"><div class="seg">' + [['semana', 'Dias da semana'], ['kanban', 'Kanban'], ['mes', 'Calendário']].map(function (x) { return '<button data-view="' + x[0] + '" class="' + (view === x[0] ? 'active' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>';
       if (view !== 'mes') h += '<button class="icon-btn" data-wk="-1" aria-label="Semana anterior">◀</button><b style="font-family:var(--f-head)">' + U.fmtDate(weekStart) + ' – ' + U.fmtDate(U.addDays(weekStart, 6)) + '</b><button class="icon-btn" data-wk="1" aria-label="Próxima semana">▶</button><button class="btn xs ghost" data-wk="0">Hoje</button>';
       else h += '<button class="icon-btn" data-mo="-1">◀</button><b style="font-family:var(--f-head)">' + U.MESES[+monthRef.slice(5) - 1] + ' de ' + monthRef.slice(0, 4) + '</b><button class="icon-btn" data-mo="1">▶</button>';
-      h += '<span class="spacer"></span><button class="btn ghost sm" data-act="new">+ Atividade</button><button class="btn sm" data-act="gen">Gerar plano da semana</button></div>';
+      h += '<span class="spacer"></span><button class="btn ghost sm" data-act="new">+ Atividade</button><button class="btn ghost sm" data-act="gen">Gerar só esta semana</button><button class="btn sm" data-act="replan">Recalcular até a prova</button></div>';
       if (pend.length) h += '<div class="alert bad"><span><b>' + pend.length + '</b> atividade(s) atrasada(s) ou não realizada(s).</span><button class="btn sm" data-act="reorg">Reorganizar cronograma</button></div>';
       var wEnd = U.addDays(weekStart, 6);
       if (view === 'semana') {
@@ -63,18 +63,21 @@
       el.innerHTML = h;
       el.onclick = onClick; bindDrag(el);
       if (q && q.get('gerar')) { history.replaceState(null, '', '#plano'); setTimeout(genPreview, 30); }
+      if (q && q.get('replan')) { history.replaceState(null, '', '#plano'); setTimeout(replanPreview, 30); }
       if (q && q.get('reorg')) { history.replaceState(null, '', '#plano'); setTimeout(function () { reorg(E.pendingActivities()); }, 30); }
     }
   };
 
   function month() {
     var first = U.parse(monthRef + '-01'), start = U.monday(monthRef + '-01'), t = U.today();
-    var h = '<div class="legend" style="margin-bottom:8px"><span><i class="dot" style="background:var(--bad)"></i>Prova</span><span>Clique num dia para abrir a semana</span></div><div class="month">' + ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(function (d) { return '<div class="mhead">' + d + '</div>'; }).join('');
+    var pend = (SOS.CONFIG.datas || []).filter(function (x) { return !x.data; });
+    var h = '<div class="legend" style="margin-bottom:8px"><span><i class="dot" style="background:var(--bad)"></i>Prova</span><span>Clique num dia para abrir a semana</span></div>' + (pend.length ? '<div class="alert info" style="display:block"><b>A confirmar (aguardando retificação do edital):</b> ' + pend.map(function (x) { return U.esc(x.rotulo); }).join(' · ') + '</div>' : '') + '<div class="month">' + ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(function (d) { return '<div class="mhead">' + d + '</div>'; }).join('');
     for (var i = 0; i < 42; i++) {
       var d = U.addDays(start, i);
       if (i >= 35 && d.slice(0, 7) !== monthRef) break;
       var acts = actsIn(d, d);
       var ev = SOS.S.concursos.filter(function (c) { return c.dataProva === d; }).map(function (c) { return '<span class="ev exam">PROVA ' + U.esc(c.sigla) + '</span>'; });
+      (SOS.CONFIG.datas || []).forEach(function (x) { if (x.data === d && x.id !== 'prova') ev.push('<span class="ev" style="background:var(--accent-soft)">' + U.esc(x.rotulo) + '</span>'); });
       var sims = SOS.S.simulados.filter(function (s) { return s.data === d; }).length, discs = SOS.S.discursivas.filter(function (x) { return x.data === d; }).length;
       var revs = SOS.S.topicos.filter(function (x) { return x.rev && x.rev.next === d; }).length;
       var fins = SOS.S.topicos.filter(function (x) { return x.status === 'finalizado' && x.finalizadoEm === d; }).length;
@@ -96,11 +99,12 @@
     if ((x = e.target.closest('[data-done]'))) return finish(x.dataset.done);
     if ((x = e.target.closest('[data-miss]'))) return miss(x.dataset.miss);
     if ((x = e.target.closest('[data-edit]'))) return actForm(find(x.dataset.edit));
-    if ((x = e.target.closest('[data-dup]'))) { var a = find(x.dataset.dup), c = JSON.parse(JSON.stringify(a)); c.id = U.uid('a'); c.status = 'nao'; c.gerado = false; SOS.S.atividades.push(c); SOS.log('Atividade duplicada', actTitle(a)); SOS.save(); ui.toast('Atividade duplicada.', 'good'); return SOS.app.render(); }
+    if ((x = e.target.closest('[data-dup]'))) { var a = find(x.dataset.dup), c = JSON.parse(JSON.stringify(a)); c.id = U.uid('a'); c.status = 'nao'; c.gerado = false; c.sessionId = null; c.sessionIds = []; if (c.topicId) c.data = U.addDays(a.data, 1); SOS.S.atividades.push(c); var mg = oneCard(); SOS.log('Atividade duplicada', actTitle(a)); SOS.save(); ui.toast(c.topicId ? 'Duplicada para ' + U.fmtShort(c.data) + (mg ? ' (unida ao cartão do mesmo assunto nesse dia)' : '') + ' — um assunto só aparece uma vez por dia.' : 'Atividade duplicada.', 'good', 5000); return SOS.app.render(); }
     if ((x = e.target.closest('[data-del]'))) { var ad = find(x.dataset.del); return ui.confirm('Excluir a atividade <b>' + U.esc(actTitle(ad)) + '</b> de ' + U.fmtDate(ad.data) + '? O registro de estudo vinculado (se houver) é mantido.', function () { SOS.S.atividades = SOS.S.atividades.filter(function (y) { return y.id !== ad.id; }); SOS.log('Atividade excluída', actTitle(ad)); SOS.save(); SOS.app.render(); }); }
     if ((x = e.target.closest('[data-addday]'))) return actForm(null, x.dataset.addday);
     if (e.target.closest('[data-act=new]')) return actForm(null);
     if (e.target.closest('[data-act=gen]')) return genPreview();
+    if (e.target.closest('[data-act=replan]')) return replanPreview();
     if (e.target.closest('[data-act=reorg]')) return reorg(E.pendingActivities());
   }
   function find(id) { return SOS.S.atividades.find(function (a) { return a.id === id; }); }
@@ -117,7 +121,7 @@
       ui.modal({ title: 'Concluir atividade', body: '<p>' + U.esc(actTitle(a)) + '</p><label class="f"><span>Tempo realizado (00:00h)</span><input name="real" value="' + U.fmtMin(a.planMin).replace('h', '') + '"></label>' + (routes[a.tipo] ? '<p class="muted">Dica: use o módulo correspondente para registrar os detalhes.</p>' : ''), buttons: [{ label: 'Cancelar', cls: 'ghost' }, routes[a.tipo] ? { label: 'Abrir módulo', cls: 'ghost', onClick: function () { var r = routes[a.tipo].split('?'); SOS.app.go(r[0], r[1]); } } : null, { label: 'Concluir', cls: 'good', onClick: function (c, root) { a.realizadoMin = U.parseMin(ui.val(root, 'real')); setStatus(a, 'feito'); } }].filter(Boolean) });
       return;
     }
-    ui.sessionModal({ topicId: a.topicId, metodo: a.metodo, planMin: a.planMin, data: a.data <= U.today() ? a.data : U.today(), atividadeId: a.id, onDone: function (s) { a.status = 'feito'; a.sessionId = s.id; var t = SOS.topic(a.topicId); if (t && t.status === 'finalizado' && !t.finalizadoEm) t.finalizadoEm = s.data; SOS.save(); } });
+    ui.sessionModal({ topicId: a.topicId, metodo: a.metodo, planMin: a.planMin, partes: a.partes, data: a.data <= U.today() ? a.data : U.today(), atividadeId: a.id, onDone: function (s) { a.status = 'feito'; a.sessionId = s.id; var t = SOS.topic(a.topicId); if (t && t.status === 'finalizado' && !t.finalizadoEm) t.finalizadoEm = s.data; SOS.save(); } });
   }
   function miss(id) {
     var a = find(id); a.status = 'naofeito'; SOS.save();
@@ -145,7 +149,7 @@
         a.topicId = tid || null; a.disc = tid ? SOS.topic(tid).disc : null; a.titulo = tit; a.data = newDate; a.metodo = ui.val(root, 'metodo');
         a.planMin = U.parseMin(ui.val(root, 'dur')); a.obs = ui.val(root, 'obs');
         var st = ui.val(root, 'status');
-        if (isNew) { a.status = st; SOS.S.atividades.push(a); SOS.log('Atividade criada', actTitle(a)); SOS.save(); SOS.app.render(); }
+        if (isNew) { a.status = st; SOS.S.atividades.push(a); var mg = oneCard(); SOS.log('Atividade criada', actTitle(a)); SOS.save(); SOS.app.render(); if (mg) ui.toast('Já havia um cartão deste assunto nesse dia: as duas coisas viraram um cartão só.', 'mid', 5000); }
         else if (st === 'feito' && a.status !== 'feito') { SOS.save(); setTimeout(function () { finish(a.id); }, 10); }
         else { a.status = st; SOS.log('Atividade editada', actTitle(a)); SOS.save(); SOS.app.render(); }
         checkDay(a.data);
@@ -176,7 +180,7 @@
           if (z.dataset.col === 'feito') return finish(a.id);
           setStatus(a, z.dataset.col);
         } else if (z.dataset.day && z.dataset.day !== a.data) {
-          a.reprogramadaDe = a.data; a.data = z.dataset.day; if (a.status === 'naofeito') a.status = 'nao';
+          a.reprogramadaDe = a.data; a.data = z.dataset.day; if (a.status === 'naofeito') a.status = 'nao'; if (oneCard()) ui.toast('Unido ao cartão do mesmo assunto nesse dia.', 'mid');
           SOS.log('Atividade reprogramada', actTitle(a) + ' → ' + U.fmtDate(a.data)); SOS.save(); SOS.app.render(); checkDay(a.data);
         }
       });
@@ -201,7 +205,8 @@
       title: 'Proposta de plano — semana de ' + U.fmtDate(mon), wide: true, body: body,
       buttons: [{ label: 'Cancelar', cls: 'ghost' }, { label: 'Aprovar e aplicar', cls: 'good', onClick: function () {
         var ids = {}; existing.forEach(function (a) { ids[a.id] = 1; });
-        SOS.S.atividades = SOS.S.atividades.filter(function (a) { return !ids[a.id]; }).concat(plan);
+        SOS.S.atividades = SOS.S.atividades.filter(function (a) { return !ids[a.id]; });
+        E.addActivities(plan);
         SOS.log('Plano semanal gerado', U.fmtDate(mon) + ' — ' + plan.length + ' atividades'); SOS.save(); SOS.app.render(); ui.toast('Plano aplicado.', 'good');
       } }]
     });
@@ -220,9 +225,26 @@
       buttons: [{ label: 'Cancelar', cls: 'ghost' }, { label: 'Aprovar selecionadas', cls: 'good', onClick: function (c, root) {
         var ok = ui.checked(root, 'ok'); var n = 0;
         ok.forEach(function (i) { var p = props[+i]; var to = ui.val(root, 'to' + i); if (!to) return; p.a.reprogramadaDe = p.a.data; p.a.data = to; p.a.status = 'nao'; n++; });
+        oneCard();
         SOS.log('Cronograma reorganizado', n + ' atividade(s)'); SOS.save(); SOS.app.render(); ui.toast(n + ' atividade(s) reprogramada(s).', 'good');
       } }]
     });
   }
-  SOS.plano = { reorg: reorg, actForm: actForm };
+  /* garante UM cartão por assunto por dia (une se necessário) */
+  function oneCard() { var antes = SOS.S.atividades.length; SOS.mergeDayActivities(SOS.S, { sessoes: [], atividades: [] }); return antes - SOS.S.atividades.length; }
+  function replanPreview() {
+    var t = U.today(), ex = E.examDate();
+    if (!ex || ex < t) return ui.toast('A data da prova já passou.', 'mid');
+    var plan = E.generateRange(t, ex), por = {}, fin = 0, sim = 0, lei = 0;
+    plan.forEach(function (a) { var w = U.monday(a.data); (por[w] = por[w] || { n: 0, min: 0 }).n++; por[w].min += a.planMin; if (E.isRetaFinal(a.data)) fin++; if (a.metodo === 'Simulado' && a.planMin) sim++; if (a.metodo === 'Lei seca') lei++; });
+    var subs = SOS.S.atividades.filter(function (a) { return a.gerado && a.status === 'nao' && a.data >= t; }).length;
+    ui.modal({
+      title: 'Recalcular o plano até ' + U.fmtDate(ex), wide: true,
+      body: '<p style="margin-top:0">Faltam <b>' + U.diffDays(t, ex) + ' dias</b>. O plano novo tem <b>' + plan.length + ' cartões</b> (um por assunto por dia): <b>' + sim + ' simulados</b>, <b>' + lei + ' blocos de lei seca</b> (uma norma por dia, com revisão antes dos simulados) e reta final de ' + E.retaFinalDias() + ' dias com mais revisão e simulados.</p>' +
+        '<div class="alert mid">' + subs + ' atividade(s) geradas automaticamente e ainda não iniciadas serão substituídas. As que você criou, começou ou concluiu ficam.</div>' +
+        '<table><thead><tr><th>Semana</th><th class="num">Cartões</th><th class="num">Tempo planejado</th></tr></thead><tbody>' + Object.keys(por).sort().map(function (w) { return '<tr><td>' + U.fmtShort(w) + '</td><td class="num">' + por[w].n + '</td><td class="num">' + U.fmtMin(por[w].min) + '</td></tr>'; }).join('') + '</tbody></table>',
+      buttons: [{ label: 'Cancelar', cls: 'ghost' }, { label: 'Aprovar e aplicar', cls: 'good', onClick: function () { var r = E.replanAll(); oneCard(); SOS.log('Plano recalculado até a prova', r.novas + ' cartões'); SOS.save(); SOS.app.render(); ui.toast('Plano recalculado: ' + r.novas + ' cartões até a prova. ♡', 'good'); } }]
+    });
+  }
+  SOS.plano = { reorg: reorg, actForm: actForm, oneCard: oneCard, replanPreview: replanPreview };
 })();

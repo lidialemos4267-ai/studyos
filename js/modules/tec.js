@@ -96,7 +96,7 @@
         st.qs[q.id] = q; if (fp) byFp[fp] = q; novos++; return;
       }
       var antes = JSON.stringify(ex);
-      ['mat', 'ass', 'banca', 'orgao', 'ano', 'cargo', 'enun', 'marc', 'gab', 'prof', 'url', 'cad', 'cadId', 'formato', 'ult'].forEach(function (k) { if (n[k] && !ex[k + 'Editado']) ex[k] = n[k]; });
+      ['mat', 'ass', 'banca', 'orgao', 'ano', 'cargo', 'enun', 'marc', 'gab', 'prof', 'url', 'cad', 'cadId', 'formato', 'ult', 'marca'].forEach(function (k) { if (n[k] && !ex[k + 'Editado']) ex[k] = n[k]; });
       if (n.alts && n.alts.length && !ex.altsEditado) ex.alts = n.alts;
       if (n.com && n.com !== ex.com) ex.com = n.com;
       if (n.est) ex.est = Object.assign({}, ex.est || {}, n.est);
@@ -106,6 +106,7 @@
       if ((n.v || 0) > (ex.vTec || 0)) { if (ex.vTec != null && n.v > ex.vTec) repet++; ex.v = (ex.v || 0) + (n.v - (ex.vTec || 0)); ex.vTec = n.v; }
       var dsHave = {}; (ex.ds || []).forEach(function (d) { dsHave[d] = (dsHave[d] || 0) + 1; });
       ex.ds = ex.ds || []; (n.ds || []).forEach(function (d) { if (!dsHave[d]) { ex.ds.push(d); } else dsHave[d]--; });
+      if (n.enun) delete ex.soContador;
       if (JSON.stringify(ex) !== antes) atual++;
     });
     // primeira importação: guarda a contagem do TEC (vTec) para detectar repetições futuras
@@ -178,6 +179,8 @@
         tr.baseRes = unRes; tr.baseAc = unAc;
       }
     });
+    // 4) cartões automáticos (fila de aprovação) das questões erradas ou marcadas como chute/dúvida
+    if (SOS.cards) SOS.cards.autoGenerate();
   };
   T.capturedIn = function (c) {
     var res = 0, ac = 0;
@@ -478,7 +481,7 @@
   }
   function toTema(q) {
     var t = q.topicId && q.topicId !== 'none' ? SOS.topic(q.topicId) : null;
-    var conc = t ? (t.concursos.indexOf('ANA') > -1 ? 'ANA' : t.concursos.indexOf('TEC') > -1 ? 'TEC' : t.concursos[0]) : 'ANA';
+    var conc = t ? t.concursos[0] : SOS.S.concursos[0].id;
     SOS.S.temas.push({ id: U.uid('tm'), titulo: (q.ass || q.mat || 'Tema') + ' — a partir de questão', proposta: q.enun + (q.alts && q.alts.length ? '\n\n(Base: questão objetiva — desenvolva o tema em 20 a 30 linhas, explicando o conceito cobrado.)' : ''), concursoId: conc, topicId: t ? t.id : '' });
     SOS.save(); ui.toast('Tema criado em Discursivas › Temas.', 'good', 4000);
   }

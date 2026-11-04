@@ -24,6 +24,9 @@
         f('Intervalos iniciais dos flashcards (dias)', '<input name="intervalosCard" value="' + s.intervalosCard.join(', ') + '">') +
         f('Caracteres por linha manuscrita (discursiva)', '<input type="number" min="40" max="120" name="charsPorLinha" value="' + s.charsPorLinha + '">') +
         f('Lembrete de backup a cada (dias)', '<input type="number" min="1" name="lembreteBackupDias" value="' + s.lembreteBackupDias + '">') +
+        f('Meta diária (00:00h)', '<input name="metaDiariaMin" value="' + U.fmtMin(s.metaDiariaMin || 240).replace('h', '') + '">') +
+        f('Meta de questões até a prova', '<input type="number" min="0" name="metaQuestoesTotal" value="' + (s.metaQuestoesTotal || 700) + '">') +
+        '<label class="f full"><span>Rota de IA para flashcards (opcional — URL do SEU servidor; a chave da API fica lá, nunca aqui)</span><input name="iaEndpoint" placeholder="https://…/api/flashcards" value="' + U.esc(s.iaEndpoint || '') + '"></label>' +
         f('Tema', '<select name="tema">' + ui.opts([['auto', 'Automático (sistema)'], ['light', 'Claro'], ['dark', 'Escuro']], s.tema) + '</select>') +
         '</div><div class="row" style="margin-top:12px"><button class="btn" data-act="save">Salvar configurações</button></div></div>';
       h += '</div><div class="card section"><h3>Zona de cuidado</h3><p class="muted" style="margin-top:0">Redefinir apaga todos os registros e recarrega os editais originais. Um snapshot do estado atual é guardado antes.</p><button class="btn danger" data-act="reset">Redefinir StudyOS</button></div>';
@@ -65,6 +68,8 @@
     s.charsPorLinha = Math.max(40, Math.min(120, +ui.val(el, 'charsPorLinha') || 75));
     s.lembreteBackupDias = Math.max(1, +ui.val(el, 'lembreteBackupDias') || 7);
     s.tema = ui.val(el, 'tema');
+    s.metaDiariaMin = U.parseMin(ui.val(el, 'metaDiariaMin')) || 240; s.metaQuestoesTotal = Math.max(0, +ui.val(el, 'metaQuestoesTotal') || 700);
+    var ia = (ui.val(el, 'iaEndpoint') || '').trim(); if (ia && !/^https:\/\//.test(ia)) { ui.toast('A rota de IA precisa começar com https://', 'bad'); return; } s.iaEndpoint = ia;
     SOS.log('Configurações salvas'); SOS.save(); SOS.app.applyTheme(); SOS.app.render(); ui.toast('Configurações salvas.', 'good');
   }
 })();

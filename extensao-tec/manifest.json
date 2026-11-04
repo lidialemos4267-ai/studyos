@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "StudyOS — TEC Concursos",
-  "version": "1.1.0",
-  "description": "Guarda localmente as questões que você resolve no TEC Concursos (sua resposta, gabarito, comentário) e entrega ao seu StudyOS. Uso pessoal.",
+  "version": "1.2.0",
+  "description": "Guarda localmente as questões que você erra (ou marca como chute/dúvida) no TEC Concursos, com gabarito e comentário; nos acertos guarda só o contador e entrega ao seu StudyOS. Uso pessoal.",
   "permissions": ["storage", "unlimitedStorage"],
   "host_permissions": ["https://www.tecconcursos.com.br/*"],
   "action": {

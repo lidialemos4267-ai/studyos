@@ -2,7 +2,7 @@
    cronograma de lei seca e de jurisprudência (sempre com aprovação). */
 (function () {
   var SOS = window.SOS, U = SOS.U, ui = SOS.ui, E = SOS.E;
-  var tab = 'leis';
+  var tab = 'prior', normaSel = 'lc01', nivelSel = 1;
   var L = SOS.leis = {};
 
   /* leis do edital (os links oficiais só foram incluídos para normas federais; as municipais você cola) */
@@ -64,8 +64,9 @@
       L.st();
       var conc = SOS.app.conc;
       var leis = SOS.S.leis.filter(function (l) { var t = SOS.topic(l.topicId); return conc === 'all' || !t || t.concursos.indexOf(conc) > -1; });
-      var h = '<div class="tabs">' + [['leis', 'Leis (' + leis.length + ')'], ['crono', 'Cronograma de lei seca'], ['juris', 'Jurisprudência (' + SOS.S.juris.length + ')']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
-      if (tab === 'leis') {
+      var h = '<div class="tabs">' + [['prior', 'Prioridades (Nível 1/2/3)'], ['leis', 'Leis (' + leis.length + ')'], ['crono', 'Cronograma de lei seca'], ['juris', 'Jurisprudência (' + SOS.S.juris.length + ')']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      if (tab === 'prior') h += vPrior();
+      else if (tab === 'leis') {
         h += '<div class="row" style="margin-bottom:10px"><p class="muted" style="margin:0">Cole o texto oficial de cada norma: o StudyOS separa por artigos para você marcar como lido, destacar, anotar e criar flashcards. Para a Selecon, a legislação municipal (Lei Orgânica e Estatuto) costuma ser cobrada de forma direta — estimativa baseada no perfil da banca, não em análise de provas.</p><span class="spacer"></span><button class="btn sm" data-act="newLei">+ Nova norma</button></div>';
         h += '<div class="grid g3">' + leis.map(function (l) {
           var p = prog(l), t = SOS.topic(l.topicId), ex = examFor(l.topicId);
@@ -84,12 +85,46 @@
       }
       el.innerHTML = h;
       el.onclick = onClick;
+      el.onchange = function (e) { var nm = e.target.dataset.nm; if (nm == null) return; var lei = leiDe(normaSel); lei.arts[+nm].nivelManual = e.target.value ? +e.target.value : null; SOS.save(); SOS.app.render(); };
     }
   };
   function find(id) { return SOS.S.leis.find(function (l) { return l.id === id; }); }
+  function leiDe(tid) { return SOS.S.leis.find(function (l) { return l.topicId === tid; }); }
+  function vPrior() {
+    var LP = SOS.leiPrior, N = LP.NORMAS[normaSel], lei = leiDe(normaSel);
+    var h = '<div class="alert info" style="display:block"><b>Priorização é uma estimativa</b>, não garantia de cobrança. Ordem dos critérios: (a) o que a Selecon já cobrou (provas de 2021 que você informou); (b) prazos, quóruns, competências, vedações e exceções; (c) ligação com o cargo de Técnico; (d) alterações recentes (LC 609/2026). O Nível 1 foi limitado para caber em cerca de uma semana de leitura (6 blocos de 35 min).</div>';
+    h += '<div class="seg" style="margin-bottom:12px;flex-wrap:wrap">' + SOS.E.NORMAS.map(function (k) { return '<button data-norma="' + k + '" class="' + (k === normaSel ? 'active' : '') + '">' + U.esc(LP.NORMAS[k].nome.split(' — ')[0].split(' (')[0].replace(' do Município de Cuiabá', '').replace(' da Câmara Municipal de Cuiabá', '')) + '</button>'; }).join('') + '</div>';
+    h += '<div class="card"><h3>' + U.esc(N.nome) + '</h3><p style="margin:0 0 6px"><small>Fonte oficial: ' + N.fontes.map(function (f) { return '<a href="' + f[1] + '" target="_blank" rel="noopener">' + U.esc(f[0]) + '</a>'; }).join(' · ') + '</small></p><p class="muted" style="margin:0;font-size:13px">Não consegui abrir o texto oficial daqui. Cole o texto da norma em <b>Leis › Colar texto</b> para ver os artigos numerados e classificados.</p></div>';
+    var cls = lei && lei.arts.length ? LP.classificar(lei) : null;
+    if (cls) {
+      var cnt = { 1: 0, 2: 0, 3: 0 }, ch = { 1: 0, 2: 0, 3: 0 };
+      cls.forEach(function (x) { cnt[x.nivel]++; ch[x.nivel] += x.chars; });
+      h += '<div class="grid g3 section">' + [1, 2, 3].map(function (n) { return '<button class="card kpi" data-nivel="' + n + '" style="text-align:left;cursor:pointer;' + (n === nivelSel ? 'outline:2px solid var(--primary)' : '') + '"><div class="l">Nível ' + n + ' — ' + ['', 'obrigatório', 'se der tempo', 'leitura rápida ou ignorar'][n] + '</div><div class="v">' + cnt[n] + ' artigos</div><div class="s">≈ ' + U.fmtMin(ch[n] / 450) + ' de leitura</div></button>'; }).join('') + '</div>';
+      h += '<div class="card section"><div class="card-h"><h3>Nível ' + nivelSel + '</h3><div class="right"><button class="btn xs ghost" data-cards="' + nivelSel + '">Gerar flashcards de fixação deste nível</button></div></div>' + cls.filter(function (x) { return x.nivel === nivelSel; }).sort(function (a, b) { return b.score - a.score; }).map(function (x) {
+        return '<div class="list-item"><div class="row"><b style="font-family:var(--f-head)">' + (/^\d/.test(x.n) ? 'Art. ' + U.esc(x.n) : U.esc(x.n)) + '</b><span>' + U.esc(x.assunto) + (x.assunto.length >= 110 ? '…' : '') + '</span><span class="spacer"></span><select data-nm="' + x.i + '" style="padding:2px 6px;font-size:12px">' + ui.opts([['', 'auto'], [1, 'Nível 1'], [2, 'Nível 2'], [3, 'Nível 3']], lei.arts[x.i].nivelManual || '') + '</select></div><small class="muted">Por quê: ' + U.esc(x.porque.join(' ')) + '</small><br><small>❓ ' + U.esc(x.pergunta) + '</small></div>';
+      }).join('') + '</div>';
+    } else {
+      [1, 2, 3].forEach(function (n) {
+        var ts = N.temas.filter(function (t) { return t.n === n; });
+        h += '<div class="card section"><h3>Nível ' + n + ' — ' + ['', 'obrigatório', 'se der tempo', 'leitura rápida ou ignorar'][n] + '</h3>' + ts.map(function (t) { return '<div class="list-item"><div class="row"><b>' + U.esc(t.tema) + '</b>' + (t.a ? '<span class="tag good">já cobrado pela Selecon</span>' : '') + '</div><small class="muted">Por quê: ' + U.esc(t.porque) + '</small><br><small>❓ ' + U.esc(t.q) + '</small></div>'; }).join('') + '</div>';
+      });
+    }
+    if (N.edital) h += '<div class="card section"><h3>Artigos citados no edital (números verificados no Edital 001/2026-CMC)</h3>' + N.edital.map(function (e) { return '<div class="list-item"><div class="row"><b style="font-family:var(--f-head)">Art. ' + U.esc(e[0]) + '</b><span>' + U.esc(e[1]) + '</span><span class="tag good">Nível 1</span></div><small class="muted">Por quê: ' + U.esc(e[2]) + '</small><br><small>❓ ' + U.esc(e[3]) + '</small></div>'; }).join('') + '</div>';
+    return h;
+  }
   function onClick(e) {
     var x;
     if ((x = e.target.closest('[data-tab]'))) { tab = x.dataset.tab; return SOS.app.render(); }
+    if ((x = e.target.closest('[data-norma]'))) { normaSel = x.dataset.norma; nivelSel = 1; return SOS.app.render(); }
+    if ((x = e.target.closest('[data-nivel]'))) { nivelSel = +x.dataset.nivel; return SOS.app.render(); }
+    if ((x = e.target.closest('[data-cards]'))) {
+      var lei0 = leiDe(normaSel), cls0 = SOS.leiPrior.classificar(lei0), n0 = 0;
+      cls0.filter(function (c) { return c.nivel === +x.dataset.cards; }).forEach(function (c) {
+        var art = lei0.arts[c.i]; var txt = art.t.length > 380 ? art.t.slice(0, 377) + '…' : art.t;
+        if (SOS.cards && SOS.cards.addDraft({ frente: c.pergunta, verso: txt, fundamento: (/^\d/.test(c.n) ? 'Art. ' + c.n + ', ' : '') + lei0.nome.split(' — ')[0], explicacao: c.porque[0] || '', topicId: lei0.topicId, origem: 'Legislação', ref: 'lei:' + lei0.id + ':' + c.n })) n0++;
+      });
+      ui.toast(n0 + ' flashcard(s) na fila de aprovação (Flashcards › Para aprovar).', 'good', 5000); SOS.save(); return SOS.app.renderNav();
+    }
     if (e.target.closest('[data-act=newLei]')) return leiForm(null);
     if ((x = e.target.closest('[data-text]'))) return leiForm(find(x.dataset.text));
     if ((x = e.target.closest('[data-read]'))) return reader(find(x.dataset.read));

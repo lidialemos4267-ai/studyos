@@ -20,6 +20,16 @@
   var dadosPagina = null;        // resumo vindo do page.js (AngularJS)
   var pendente = { id: null, desde: 0, contado: false }; // regra dos 2 segundos
   var ocupado = false;
+  var marcas = {};               // id → 'chutei' | 'em dúvida' (marcado por você no painel)
+  var CAMPOS_CONTEUDO = ['enun', 'alts', 'marc', 'gab', 'com', 'prof', 'est'];
+
+  // limpeza única: acertos comuns antigos passam a guardar só o contador
+  chrome.storage.local.get(['qs', 'limpezaAcertos'], function (st) {
+    if (st.limpezaAcertos) return;
+    var qs = st.qs || {}, n = 0;
+    Object.keys(qs).forEach(function (k) { var q = qs[k]; if (q.v > 0 || q.marca) return; CAMPOS_CONTEUDO.forEach(function (f) { if (q[f] != null) { delete q[f]; n++; } }); q.soContador = true; });
+    chrome.storage.local.set({ qs: qs, limpezaAcertos: true });
+  });
 
   window.addEventListener('message', function (ev) {
     if (ev.source !== window || !ev.data || ev.data.src !== 'tec-page') return;
@@ -132,13 +142,19 @@
     });
     return r;
   }
-  function guardar(lido, contar) {
+  function guardar(lido, contar, avisarMarca) {
     if (ocupado) return;
     ocupado = true;
     chrome.storage.local.get(['qs'], function (st) {
       var qs = st.qs || {};
       var antigo = qs[lido.id] || { id: lido.id, d: hoje(), t: Date.now(), v: 0, ds: [], hist: [] };
-      var reg = mesclar(antigo, lido.q);
+      if (marcas[lido.id]) antigo = Object.assign({}, antigo, { marca: marcas[lido.id] });
+      // conteúdo completo só quando errou ou marcou "chutei"/"em dúvida"; acerto comum = só o contador
+      var completo = lido.resultado === 'E' || antigo.v > 0 || !!antigo.marca;
+      var dados = lido.q;
+      if (!completo) { dados = {}; Object.keys(lido.q).forEach(function (k) { if (CAMPOS_CONTEUDO.indexOf(k) < 0) dados[k] = lido.q[k]; }); }
+      var reg = mesclar(antigo, dados);
+      if (completo) delete reg.soContador; else reg.soContador = true;
       reg.ult = lido.resultado;
       var cad = lerCaderno(); if (cad && !reg.cad) reg.cad = cad.cad;
       if (cad) reg.cadId = reg.cadId || cad.id;
@@ -154,6 +170,7 @@
       qs[lido.id] = reg;
       chrome.storage.local.set({ qs: qs }, function () {
         ocupado = false;
+        if (avisarMarca) aviso('✎ Marcada como “' + reg.marca + '” — questão completa guardada para virar flashcard', '#8b5cf6');
         if (!contar) return;
         if (lido.resultado === 'E') {
           var totalErros = Object.keys(qs).filter(function (k) { return qs[k].v > 0; }).length;
@@ -176,12 +193,41 @@
     });
   }
 
+  // ---------- painel discreto: "Chutei" / "Em dúvida" (só marca no StudyOS; não clica em nada do TEC) ----------
+  var painel = null;
+  function montarPainel() {
+    if (painel) return;
+    painel = document.createElement('div');
+    painel.setAttribute('style', 'position:fixed;left:16px;bottom:16px;z-index:2147483646;display:flex;gap:6px;align-items:center;padding:6px 8px;border-radius:12px;background:#fff7f9;border:1px solid #e9c9d1;box-shadow:0 4px 16px rgba(120,60,80,.18);font:600 12px system-ui,sans-serif;color:#7a3e52');
+    painel.innerHTML = '<span style="opacity:.8">StudyOS:</span>';
+    [['chutei', 'Chutei'], ['em dúvida', 'Em dúvida']].forEach(function (b) {
+      var x = document.createElement('button');
+      x.textContent = b[1]; x.dataset.m = b[0];
+      x.setAttribute('style', 'border:1px solid #d9a9b6;background:#fff;color:#7a3e52;border-radius:999px;padding:3px 10px;cursor:pointer;font:inherit');
+      x.addEventListener('click', function () {
+        var lido = lerQuestao(); if (!lido) return aviso('Abra uma questão primeiro', '#7a3e52');
+        marcas[lido.id] = marcas[lido.id] === b[0] ? null : b[0];
+        atualizarPainel(lido.id);
+        if (marcas[lido.id] && lido.resultado) guardar(lido, false, true);
+        else if (marcas[lido.id]) aviso('✎ Marcada como “' + b[0] + '”: será guardada completa ao responder', '#8b5cf6');
+      });
+      painel.appendChild(x);
+    });
+    document.documentElement.appendChild(painel);
+  }
+  function atualizarPainel(id) {
+    if (!painel) return;
+    Array.prototype.forEach.call(painel.querySelectorAll('button'), function (x) { var on = marcas[id] === x.dataset.m; x.style.background = on ? '#a85d6e' : '#fff'; x.style.color = on ? '#fff' : '#7a3e52'; });
+  }
+
   // ---------- ciclo principal (o TEC troca de questão sem recarregar a página) ----------
   function tick() {
     try {
       guardarCaderno();
       var lido = lerQuestao();
+      if (painel) painel.style.display = lido ? 'flex' : 'none';
       if (!lido) return;
+      montarPainel(); atualizarPainel(lido.id);
       if (!lido.resultado) { // questão aberta e ainda sem resposta
         if (pendente.id !== lido.id) pendente = { id: lido.id, desde: Date.now(), contado: false };
         return;

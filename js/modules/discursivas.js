@@ -17,7 +17,7 @@
       var notas = ds.filter(function (d) { return d.nota !== '' && d.nota != null; });
       var media = notas.length ? notas.reduce(function (x, d) { return x + +d.nota; }, 0) / notas.length : null;
       var tempo = ds.filter(function (d) { return d.tempoMin; });
-      var h = '<div class="row" style="margin-bottom:14px"><button class="btn" data-act="new">+ Nova discursiva</button><button class="btn ghost" data-act="tema">+ Cadastrar tema</button><span class="spacer"></span><small class="muted">Câmara: 20 a 30 linhas · Conteúdo 80 + Correção formal 20 · mínimo 40 pontos</small></div>';
+      var h = '<div class="row" style="margin-bottom:14px"><button class="btn" data-act="new">+ Nova discursiva</button><button class="btn ghost" data-act="tema">+ Cadastrar tema</button><span class="spacer"></span><small class="muted">Prova em 20/12 (tarde): 20 a 30 linhas · Conteúdo 80 + Correção formal 20 · mínimo 40 pontos</small></div>';
       h += '<div class="tabs">' + [['painel', 'Painel'], ['temas', 'Temas (' + SOS.S.temas.length + ')'], ['hist', 'Histórico (' + ds.length + ')']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
       if (tab === 'painel') {
         var dif = {}; ds.forEach(function (d) { (d.dificuldades || []).forEach(function (c) { dif[c] = (dif[c] || 0) + 1; }); });
@@ -57,12 +57,12 @@
     if ((x = e.target.closest('[data-open]'))) return editor(SOS.S.discursivas.find(function (d) { return d.id === x.dataset.open; }));
     if ((x = e.target.closest('[data-del]'))) { var d = SOS.S.discursivas.find(function (y) { return y.id === x.dataset.del; }); return ui.confirm('Excluir esta discursiva (' + U.fmtDate(d.data) + ')? O texto será perdido.', function () { SOS.S.discursivas = SOS.S.discursivas.filter(function (y) { return y.id !== d.id; }); SOS.log('Discursiva excluída', d.tema); SOS.save(); SOS.app.render(); }); }
     if ((x = e.target.closest('[data-recact]'))) { var r = SOS.views.discursivas._rec[+x.dataset.recact]; SOS.S.atividades.push({ id: U.uid('a'), data: U.addDays(U.today(), 1), topicId: null, disc: null, metodo: 'Discursiva', planMin: 30, titulo: 'Revisar ponto da discursiva: ' + r.txt, tipo: 'discursiva', status: 'nao', obs: '' }); SOS.save(); ui.toast('Revisão agendada para amanhã no Planejamento.', 'good'); return SOS.app.renderNav(); }
-    if ((x = e.target.closest('[data-reccard]'))) { var r2 = SOS.views.discursivas._rec[+x.dataset.reccard]; SOS.S.flashcards.push({ id: U.uid('f'), tipo: 'Pergunta objetiva', frente: 'Discursiva — como evitar: ' + r2.txt + '?', verso: '(preencha a regra correta)', explicacao: '', fundamento: '', pegadinha: '', topicId: '', concursos: ['ANA', 'TEC'], banca: 'Selecon', origem: 'Conteúdo importante', erroId: null, tags: 'discursiva', srs: E.cardNew(), log: [], criadoEm: U.today() }); SOS.save(); ui.toast('Flashcard criado — edite o verso em Flashcards › Cartões.', 'good', 5000); }
+    if ((x = e.target.closest('[data-reccard]'))) { var r2 = SOS.views.discursivas._rec[+x.dataset.reccard]; SOS.S.flashcards.push({ id: U.uid('f'), tipo: 'Pergunta objetiva', frente: 'Discursiva — como evitar: ' + r2.txt + '?', verso: '(preencha a regra correta)', explicacao: '', fundamento: '', pegadinha: '', topicId: '', concursos: SOS.S.concursos.map(function (c) { return c.id; }), banca: 'Selecon', origem: 'Conteúdo importante', erroId: null, tags: 'discursiva', srs: E.cardNew(), log: [], criadoEm: U.today() }); SOS.save(); ui.toast('Flashcard criado — edite o verso em Flashcards › Cartões.', 'good', 5000); }
   }
 
   function temaForm(t) {
     var isNew = !t;
-    t = t || { id: U.uid('tm'), titulo: '', proposta: '', concursoId: 'ANA', topicId: '' };
+    t = t || { id: U.uid('tm'), titulo: '', proposta: '', concursoId: SOS.S.concursos[0].id, topicId: '' };
     ui.modal({
       title: isNew ? 'Novo tema' : 'Editar tema',
       body: '<div class="form"><label class="f full"><span>Tema</span><input name="titulo" value="' + U.esc(t.titulo) + '"></label><label class="f"><span>Concurso</span><select name="c">' + ui.concOptions(t.concursoId) + '</select></label><label class="f"><span>Assunto do edital</span><select name="tp">' + ui.topicOptions(t.topicId, null, true) + '</select></label><label class="f full"><span>Proposta / comando da questão</span><textarea name="proposta" rows="4">' + U.esc(t.proposta) + '</textarea></label></div>',
@@ -76,7 +76,7 @@
 
   function editor(d, temaId) {
     var isNew = !d, tm = temaId && SOS.S.temas.find(function (t) { return t.id === temaId; });
-    d = d || { id: U.uid('d'), data: U.today(), temaId: tm ? tm.id : '', tema: tm ? tm.titulo : '', proposta: tm ? tm.proposta : '', concursoId: tm ? tm.concursoId : 'ANA', topicId: tm ? tm.topicId : '', texto: '', tempoMin: 0, notaConteudo: '', notaFormal: '', nota: '', correcoes: '', dificuldades: [], errosRec: '', avaliacao: {} };
+    d = d || { id: U.uid('d'), data: U.today(), temaId: tm ? tm.id : '', tema: tm ? tm.titulo : '', proposta: tm ? tm.proposta : '', concursoId: tm ? tm.concursoId : SOS.S.concursos[0].id, topicId: tm ? tm.topicId : '', texto: '', tempoMin: 0, notaConteudo: '', notaFormal: '', nota: '', correcoes: '', dificuldades: [], errosRec: '', avaliacao: {} };
     var elapsed = (d.tempoMin || 0) * 60, running = false, last = 0;
     var body = '<div class="form">' +
       '<label class="f"><span>Tema (do banco)</span><select name="temaId"><option value="">— tema livre —</option>' + ui.opts(SOS.S.temas.map(function (t) { return [t.id, t.titulo]; }), d.temaId) + '</select></label>' +

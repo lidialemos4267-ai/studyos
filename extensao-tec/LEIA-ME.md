@@ -1,6 +1,11 @@
 # Extensão StudyOS — TEC Concursos
 
-Guarda no **seu navegador** as questões que você resolve no TEC Concursos: enunciado, alternativas, sua resposta, gabarito, comentário do professor, matéria, assunto, banca, estatística (quando disponível) e os totais do caderno. Depois entrega tudo ao seu StudyOS.
+Guarda no **seu navegador** o que você resolve no TEC Concursos e entrega ao seu StudyOS:
+
+- **Questão errada:** guarda a questão completa (enunciado, alternativas, sua resposta, gabarito, comentário do professor, matéria, assunto e banca). Ela vira erro no Caderno de Erros e um flashcard para você aprovar.
+- **Acertou, mas chutou ou ficou em dúvida:** clique em **Chutei** ou **Em dúvida** no painel pequeno do canto inferior esquerdo. A questão é guardada completa, como se fosse um erro.
+- **Acerto normal:** guarda **só o contador** (assunto, data e acerto), para as estatísticas ficarem certas sem ocupar espaço.
+- Também guarda os totais do caderno.
 
 - **Só lê o que aparece na sua tela.** Não responde questões, não clica em nada, não baixa questões em lote e não envia nada para nenhum servidor.
 - **Permissões mínimas:** `storage` e acesso a `https://www.tecconcursos.com.br/*`.
@@ -20,9 +25,10 @@ Não apague nem mova a pasta `extensao-tec` depois de instalar: o Chrome carrega
 ## Como usar
 
 1. Abra o TEC e resolva normalmente.
-2. Quando você errar, aparece no canto da tela **"✗ Erro guardado (N no total)"**. Se for a segunda vez na mesma questão, aparece **"⚠ Errada N vezes!"**. Acertos mostram **"✓ Acerto registrado"**.
-3. Clique em **"Ver resolução"** no TEC para que o comentário do professor também seja guardado. Ele é acrescentado depois, sem contar um novo erro.
-4. Abra o StudyOS em **Banco de questões (TEC)**. Com a extensão instalada, os dados chegam **sozinhos**, e aparece "● Extensão conectada".
+2. Se acertar chutando, clique em **Chutei** (ou **Em dúvida**) no painel do canto inferior esquerdo.
+3. Quando você errar, aparece no canto da tela **"✗ Erro guardado (N no total)"**. Se for a segunda vez na mesma questão, aparece **"⚠ Errada N vezes!"**. Acertos mostram **"✓ Acerto registrado"**.
+4. Clique em **"Ver resolução"** no TEC para que o comentário do professor também seja guardado. Ele é acrescentado depois, sem contar um novo erro.
+5. Abra o StudyOS em **Banco de questões (TEC)**. Com a extensão instalada, os dados chegam **sozinhos**, e aparece "● Extensão conectada".
 
 ### Regras de contagem
 

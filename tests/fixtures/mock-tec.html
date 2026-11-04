@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Caderno Teste Princípios | TEC Concursos</title></head><body>
+<div class="cabecalho">Questão <span id="qn">1</span> de 50 (<span id="res">0</span> Resolvidas, <span id="ac">0</span> Acertos e <span id="er">0</span> Erros)</div>
+<div class="questao">
+  <div class="questao-cabecalho">Matéria: Direito Administrativo Assunto: Princípios da Administração Pública<br>#<span id="hid">99887766</span> SELECON - 2024 - Câmara Municipal Exemplo</div>
+  <div class="questao-enunciado">
+    <div class="questao-enunciado-texto" tec-formatar-html="vm.questao.enunciado" id="enun">Questão inventada para teste: qual princípio exige que a atuação administrativa seja neutra em relação às pessoas?</div>
+    <ul class="questao-enunciado-alternativas">
+      <li><span class="questao-enunciado-alternativa-opcao">A</span><span class="questao-enunciado-alternativa-texto">Publicidade</span></li>
+      <li id="liB"><span class="questao-enunciado-alternativa-opcao">B</span><span class="questao-enunciado-alternativa-texto">Eficiência</span></li>
+      <li><span class="questao-enunciado-alternativa-opcao">C</span><span class="questao-enunciado-alternativa-texto">Impessoalidade</span></li>
+      <li><span class="questao-enunciado-alternativa-opcao">D</span><span class="questao-enunciado-alternativa-texto">Legalidade</span></li>
+    </ul>
+  </div>
+  <div id="resol"></div>
+</div>
+<script>
+  // ?id=NNN troca o número da questão (para simular questões diferentes)
+  var qid = +(new URLSearchParams(location.search).get('id') || 99887766);
+
+  // AngularJS falso: só o necessário para o page.js achar vm.questao
+  var vm = { questao: { idQuestao: qid, nomeMateria: 'Direito Administrativo', bancaSigla: 'SELECON', orgaoNome: 'Câmara Municipal Exemplo', ano: 2024, numeroAlternativaCorreta: 3, percentualAcertos: 61.5 }, nomeAssuntoExibicao: 'Princípios da Administração Pública', comentario: {} };
+  window.angular = { element: function () { return { scope: function () { return { $parent: { vm: vm } }; } }; } };
+  window.errar = function () {
+    document.getElementById('liB').classList.add('questao-alternativa-selecionada');
+    document.getElementById('resol').innerHTML = '<div class="questao-enunciado-resolucao-errou">Você errou! Gabarito: C</div>';
+    document.getElementById('res').textContent = '1'; document.getElementById('er').textContent = '1';
+  };
+  window.comentar = function () {
+    vm.comentario = { textoComentario: '<p>A impessoalidade impõe tratamento neutro (comentário inventado).</p>', nomeProfessor: 'Prof. Teste' };
+    document.getElementById('resol').insertAdjacentHTML('beforeend', '<div tec-formatar-html="vm.comentario.textoComentario">A impessoalidade impõe tratamento neutro (comentário inventado).</div><span ng-bind="vm.comentario.nomeProfessor">Prof. Teste</span>');
+  };
+  window.acertar = function () {
+    document.getElementById('liB').classList.remove('questao-alternativa-selecionada');
+    document.querySelectorAll('.questao-enunciado-alternativas li')[2].classList.add('questao-alternativa-selecionada');
+    document.getElementById('resol').innerHTML = '<div class="questao-enunciado-resolucao-acertou">Você acertou!</div>';
+  };
+  window.reabrir = function () { /* simula sair e voltar para a mesma questão já resolvida */ var r = document.getElementById('resol'); var h = r.innerHTML; r.innerHTML = ''; setTimeout(function(){ r.innerHTML = h; }, 300); };
+  document.getElementById('hid').textContent = qid;
+</script></body></html>

@@ -55,9 +55,11 @@
   /* ---------- tags ---------- */
   ui.discTag = function (id) { var d = SOS.disc(id); return '<span class="tag c" style="background:' + d.cor + '">' + U.esc(d.nome) + '</span>'; };
   ui.concTags = function (ids) {
+    if (SOS.S && SOS.S.concursos.length < 2) return '';
     return (ids || []).map(function (id) { var c = SOS.conc(id); return c ? '<span class="tag" style="border:1px solid ' + c.cor + ';color:' + c.cor + ';background:transparent">' + U.esc(c.sigla) + '</span>' : ''; }).join(' ');
   };
   ui.shareTag = function (t) {
+    if (SOS.S.concursos.length < 2) return '';
     var hasC = t.concursos.some(function (c) { return c === 'ANA' || c === 'TEC'; }), hasO = t.concursos.indexOf('OUV') > -1;
     if (hasC && hasO) return t.parcial ? '<span class="tag mid" title="' + U.esc(t.nota) + '">🟡 Comum c/ diferenças</span>' : '<span class="tag good">🟢 Comum</span>';
     if (hasO) return '<span class="tag" style="background:#f3e8ff;color:#7e22ce">🟣 Só Chapada</span>';
@@ -146,38 +148,43 @@
   ui.pctColor = function (p) { return p == null ? 'var(--faint)' : p < 70 ? 'var(--bad)' : p <= 80 ? 'var(--mid)' : 'var(--good)'; };
 
   /* ---------- modal de registro de estudo (sessão) ---------- */
+  /* ---------- cartão do dia: um registro por assunto por dia (leitura + questões + revisão + tempo + observações) ---------- */
+  E.daySession = function (topicId, data) { return SOS.S.sessoes.find(function (x) { return x.topicId === topicId && x.data === data && x.origem !== 'TEC' && x.origem !== 'TEC-cad'; }); };
   ui.sessionModal = function (o) {
     o = o || {};
     var S = SOS.S, s = o.session || {};
-    var t = SOS.topic(s.topicId || o.topicId);
+    var parteLeitura = o.partes ? o.partes.filter(function (p) { return /Leitura|Lei seca|Aula/.test(p.metodo); }).reduce(function (x, p) { return x + p.min; }, 0) : 0;
     var body =
       '<div class="form">' +
       '<label class="f full"><span>Assunto (tópico do edital)</span><select name="topicId">' + ui.topicOptions(s.topicId || o.topicId, null, true) + '</select></label>' +
       '<label class="f"><span>Data</span><input type="date" name="data" value="' + (s.data || o.data || U.today()) + '"></label>' +
-      '<label class="f"><span>Método de estudo</span><select name="metodo">' + ui.metodoOptions(s.metodo || o.metodo || 'Questões') + '</select></label>' +
-      '<label class="f"><span>Tempo planejado (00:00h)</span><input name="plan" placeholder="01:30" value="' + U.fmtMin(s.planejadoMin != null ? s.planejadoMin : (o.planMin || 0)).replace('h', '') + '"></label>' +
-      '<label class="f"><span>Tempo realizado (00:00h)</span><input name="real" placeholder="01:15" value="' + (s.realizadoMin != null ? U.fmtMin(s.realizadoMin).replace('h', '') : '') + '"></label>' +
-      '<label class="f"><span>Total de questões</span><input type="number" min="0" name="total" value="' + (s.total != null ? s.total : '') + '"></label>' +
+      '<label class="f"><span>Método principal</span><select name="metodo">' + ui.metodoOptions((s.metodo || o.metodo || 'Questões').split(' + ')[0]) + '</select></label>' +
+      '<div class="full" id="jaExiste"></div>' +
+      '<label class="f"><span>Leitura / teoria (00:00h)</span><input name="leit" placeholder="00:40" value="' + (s.leituraMin != null ? U.fmtMin(s.leituraMin).replace('h', '') : parteLeitura ? U.fmtMin(parteLeitura).replace('h', '') : '') + '"></label>' +
+      '<label class="f"><span>Tempo total realizado (00:00h)</span><input name="real" placeholder="01:15" value="' + (s.realizadoMin != null ? U.fmtMin(s.realizadoMin).replace('h', '') : '') + '"></label>' +
+      '<label class="f"><span>Questões feitas</span><input type="number" min="0" name="total" value="' + (s.total != null ? s.total : '') + '"></label>' +
       '<label class="f"><span>Acertos</span><input type="number" min="0" name="acertos" value="' + (s.acertos != null ? s.acertos : '') + '"></label>' +
       '<div class="full row" id="pctLive"></div>' +
-      '<label class="f"><span>Status do tópico após o estudo</span><select name="status">' + ui.opts([['', 'Manter / automático'], ['estudando', 'Estudando'], ['revisar', 'Revisar'], ['finalizado', 'Finalizado']], '') + '</select></label>' +
-      '<label class="f"><span>Concurso de referência</span><select name="conc"><option value="">Automático (todos do tópico)</option>' + ui.concOptions(s.conc || o.conc) + '</select></label>' +
+      '<label class="chk" style="width:max-content"><input type="checkbox" name="rev"' + (s.revisao ? ' checked' : '') + '> Fiz revisão deste assunto</label>' +
+      '<label class="f"><span>Tempo planejado (00:00h)</span><input name="plan" value="' + U.fmtMin(s.planejadoMin != null ? s.planejadoMin : (o.planMin || 0)).replace('h', '') + '"></label>' +
+      '<label class="f"><span>Status do tópico depois</span><select name="status">' + ui.opts([['', 'Manter / automático'], ['estudando', 'Estudando'], ['revisar', 'Revisar'], ['finalizado', 'Finalizado']], '') + '</select></label>' +
       '<label class="f full"><span>Observações</span><textarea name="obs" rows="2">' + U.esc(s.obs || '') + '</textarea></label>' +
-      (s.id ? '' : '<label class="chk full" style="width:max-content"><input type="checkbox" name="addErr"> Registrar erros no Caderno de Erros após salvar</label>') +
-      '</div>';
+      (s.id ? '' : '<label class="chk full" style="width:max-content"><input type="checkbox" name="addErr"> Registrar erros no Caderno de Erros depois de salvar</label>') +
+      '</div><small class="muted">Questões resolvidas no TEC com a extensão já entram sozinhas — não lance de novo aqui.</small>';
     ui.modal({
-      title: s.id ? 'Editar registro de estudo' : 'Registrar estudo',
+      title: s.id ? 'Editar o dia deste assunto' : 'Registrar estudo do dia',
       body: body,
       onOpen: function (root) {
         function upd() {
           var tot = +ui.val(root, 'total') || 0, ac = +ui.val(root, 'acertos') || 0;
           var box = root.querySelector('#pctLive');
-          if (!tot) { box.innerHTML = '<small class="muted">Informe o total e os acertos para calcular o aproveitamento.</small>'; return; }
-          if (ac > tot) { box.innerHTML = '<span class="pct bad">Acertos maiores que o total</span>'; return; }
-          var p = U.pct(ac, tot);
-          box.innerHTML = 'Erros: <b>' + (tot - ac) + '</b> · Aproveitamento: ' + ui.pctBadge(p) + ' <small class="muted">(' + ac + ' ÷ ' + tot + ' × 100)</small>';
+          if (!tot) box.innerHTML = '<small class="muted">Informe questões e acertos para calcular o aproveitamento.</small>';
+          else if (ac > tot) box.innerHTML = '<span class="pct bad">Acertos maiores que o total</span>';
+          else box.innerHTML = 'Erros: <b>' + (tot - ac) + '</b> · Aproveitamento: ' + ui.pctBadge(U.pct(ac, tot)) + ' <small class="muted">(' + ac + ' ÷ ' + tot + ' × 100)</small>';
+          var ex = !s.id && E.daySession(ui.val(root, 'topicId'), ui.val(root, 'data'));
+          root.querySelector('#jaExiste').innerHTML = ex ? '<div class="alert info" style="margin:0">Já existe registro deste assunto neste dia (' + U.fmtMin(ex.realizadoMin) + ', ' + (ex.total || 0) + ' questões). <b>O que você lançar agora será somado a ele</b> — um só cartão por assunto por dia.</div>' : '';
         }
-        ['total', 'acertos'].forEach(function (n) { root.querySelector('[name=' + n + ']').addEventListener('input', upd); });
+        root.addEventListener('input', upd); root.addEventListener('change', upd);
         upd();
       },
       buttons: [{ label: 'Cancelar', cls: 'ghost' }, {
@@ -187,18 +194,30 @@
           var tot = parseInt(ui.val(root, 'total'), 10) || 0, ac = parseInt(ui.val(root, 'acertos'), 10) || 0;
           if (ac > tot) { ui.toast('Acertos não podem ser maiores que o total.', 'bad'); return false; }
           if (tot < 0 || ac < 0) { ui.toast('Valores inválidos.', 'bad'); return false; }
-          var rec = s.id ? s : { id: U.uid('s') };
-          var isNew = !s.id;
-          rec.topicId = tid; rec.data = ui.val(root, 'data') || U.today(); rec.metodo = ui.val(root, 'metodo');
-          rec.planejadoMin = U.parseMin(ui.val(root, 'plan')); rec.realizadoMin = U.parseMin(ui.val(root, 'real'));
-          rec.total = tot; rec.acertos = ac; rec.obs = ui.val(root, 'obs'); rec.conc = ui.val(root, 'conc') || null;
-          if (o.atividadeId) rec.atividadeId = o.atividadeId;
-          if (isNew) { S.sessoes.push(rec); E.applySessionToTopic(rec); }
+          var data = ui.val(root, 'data') || U.today(), leit = U.parseMin(ui.val(root, 'leit')), real = U.parseMin(ui.val(root, 'real')), plan = U.parseMin(ui.val(root, 'plan'));
+          if (!real && leit) real = leit;
+          var metodo = ui.val(root, 'metodo'), revisao = ui.val(root, 'rev'), obs = ui.val(root, 'obs').trim();
+          var rec, isNew = !s.id, somou = false;
+          if (s.id) { rec = s; rec.topicId = tid; rec.data = data; rec.metodo = metodo; rec.leituraMin = leit; rec.realizadoMin = real; rec.planejadoMin = plan; rec.total = tot; rec.acertos = ac; rec.revisao = revisao; rec.obs = obs; }
+          else {
+            rec = E.daySession(tid, data);
+            if (rec) {
+              somou = true;
+              rec.leituraMin = (+rec.leituraMin || 0) + leit; rec.realizadoMin = (+rec.realizadoMin || 0) + real; rec.planejadoMin = (+rec.planejadoMin || 0) + plan;
+              rec.total = (+rec.total || 0) + tot; rec.acertos = (+rec.acertos || 0) + ac; rec.revisao = rec.revisao || revisao;
+              if (rec.metodo.split(' + ').indexOf(metodo) < 0) rec.metodo += ' + ' + metodo;
+              if (obs) rec.obs = rec.obs ? rec.obs + ' | ' + obs : obs;
+            } else {
+              rec = { id: U.uid('s'), topicId: tid, data: data, metodo: metodo, leituraMin: leit, realizadoMin: real, planejadoMin: plan, total: tot, acertos: ac, revisao: revisao, obs: obs };
+              S.sessoes.push(rec); E.applySessionToTopic(rec);
+            }
+          }
+          if (o.atividadeId) { rec.atividadeIds = rec.atividadeIds || []; if (rec.atividadeIds.indexOf(o.atividadeId) < 0) rec.atividadeIds.push(o.atividadeId); rec.atividadeId = rec.atividadeId || o.atividadeId; }
           var st = ui.val(root, 'status'); var tp = SOS.topic(tid);
-          if (st && tp) { tp.status = st; if (st === 'finalizado') tp.finalizadoEm = rec.data; }
-          SOS.log(isNew ? 'Registro de estudo' : 'Edição de registro', SOS.topicLabel(tid) + ' — ' + rec.metodo);
+          if (st && tp) { tp.status = st; if (st === 'finalizado') tp.finalizadoEm = data; }
+          SOS.log(isNew ? (somou ? 'Registro somado ao dia' : 'Registro de estudo') : 'Edição de registro', SOS.topicLabel(tid) + ' — ' + rec.metodo);
           SOS.save();
-          ui.toast('Estudo registrado.', 'good');
+          ui.toast(somou ? 'Somado ao registro de hoje deste assunto. ♡' : 'Estudo registrado. ♡', 'good');
           var addErr = isNew && ui.val(root, 'addErr');
           if (o.onDone) o.onDone(rec);
           SOS.app.render();

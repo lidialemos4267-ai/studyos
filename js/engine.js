@@ -18,8 +18,23 @@
   E.sessionIn = function (s, conc) { if (!conc || conc === 'all') return true; var t = SOS.topic(s.topicId); return t ? E.topicIn(t, conc) : false; };
 
   /* ---------- estatísticas por tópico ---------- */
+  /* junta todos os registros (manuais, TEC e treinos) do mesmo assunto no mesmo dia: um item por assunto por dia */
+  E.dailyEntries = function (sessoes) {
+    var map = {}, out = [];
+    sessoes.forEach(function (s) {
+      var k = s.topicId + '|' + s.data, m = map[k];
+      if (!m) { m = map[k] = { id: 'd:' + k, topicId: s.topicId, data: s.data, metodo: s.metodo, total: 0, acertos: 0, realizadoMin: 0, planejadoMin: 0, leituraMin: 0, revisao: false, obs: [], partes: [] }; out.push(m); }
+      m.total += +s.total || 0; m.acertos += +s.acertos || 0; m.realizadoMin += +s.realizadoMin || 0; m.planejadoMin += +s.planejadoMin || 0; m.leituraMin += +s.leituraMin || 0;
+      if (s.revisao || /Revis/.test(s.metodo || '')) m.revisao = true;
+      if (s.obs) m.obs.push(s.obs);
+      if (m.partes.length && m.metodo.split(' + ').indexOf(s.metodo) < 0) m.metodo += ' + ' + s.metodo;
+      m.partes.push(s);
+    });
+    out.forEach(function (m) { m.obs = m.obs.join(' | '); });
+    return out;
+  };
   E.topicStats = function (tid) {
-    var ss = SOS.S.sessoes.filter(function (s) { return s.topicId === tid; }).sort(function (a, b) { return a.data < b.data ? -1 : 1; });
+    var ss = E.dailyEntries(SOS.S.sessoes.filter(function (s) { return s.topicId === tid; })).sort(function (a, b) { return a.data < b.data ? -1 : 1; });
     var tot = 0, ac = 0, min = 0;
     ss.forEach(function (s) { tot += +s.total || 0; ac += +s.acertos || 0; min += +s.realizadoMin || 0; });
     var erros = SOS.S.erros.filter(function (e) { return e.topicId === tid; });
@@ -156,7 +171,7 @@
       map[d].push(s);
     });
     return Object.keys(map).map(function (d) {
-      var o = E.sum(map[d]); o.disc = d; o.sess = map[d]; o.trend = E.trend(map[d].slice().sort(function (a, b) { return a.data < b.data ? -1 : 1; })); return o;
+      var o = E.sum(map[d]); o.disc = d; o.sess = E.dailyEntries(map[d]); o.trend = E.trend(o.sess.slice().sort(function (a, b) { return a.data < b.data ? -1 : 1; })); return o;
     });
   };
   /* séries semanais (últimas n semanas) */
@@ -287,99 +302,123 @@
   };
 
   /* ---------- planejamento semanal ---------- */
-  function dayBlocks(total) {
-    // revisão 30 + flashcards 15 já descontados; 3 blocos
-    var rest = Math.max(90, total - 45);
-    var a = Math.round(rest * 0.38 / 5) * 5, b = Math.round(rest * 0.33 / 5) * 5;
-    return [a, b, rest - a - b];
-  }
+  /* ---------- planejamento (um cartão por assunto por dia) ---------- */
+  E.examDate = function () { var c = SOS.S.concursos[0]; return c ? c.dataProva : null; };
+  E.retaFinalDias = function () { return (SOS.CONFIG && SOS.CONFIG.retaFinalDias) || 10; };
+  E.isRetaFinal = function (d) { var ex = E.examDate(); return !!ex && d < ex && U.diffDays(d, ex) <= E.retaFinalDias(); };
   function pickMethod(t) {
-    if (t.disc === 'LEGC' || t.disc === 'LEGF' || t.disc === 'LEGCH' || (t.disc === 'DC')) return t.status === 'nao' ? 'Lei seca' : 'Questões';
-    return t.status === 'nao' ? 'Leitura' : 'Questões';
+    var lei = /^LEG/.test(t.disc) || t.disc === 'DC';
+    if (t.status === 'nao') return lei ? 'Lei seca + questões' : 'Leitura + questões';
+    return 'Questões + revisão';
   }
   E.discScores = function (date) {
     var w = E.phaseWeights(date), sc = {};
     SOS.S.topicos.forEach(function (t) {
       if (t.status === 'finalizado' && !(t.rev && t.rev.next <= date)) return;
       var p = E.priority(t, date, w);
-      if (p <= 0) return;
-      sc[t.disc] = (sc[t.disc] || 0) + p;
+      if (p > 0) sc[t.disc] = (sc[t.disc] || 0) + p;
     });
     return sc;
   };
   E.CONFLITOS = [['LP', 'INF']];
   E.conflicts = function (a, b) { return E.CONFLITOS.some(function (p) { return (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a); }); };
+  E.NORMAS = ['lc01', 'lc02', 'lc03', 'lc04']; // Lei Orgânica, Regimento Interno, LC 93/2003, LC 235/2011 (+609/2026)
+  function isSimDay(d) { var w = U.dow(d); return w === 0 || (E.isRetaFinal(d) && (w === 3 || w === 6)); }
 
-  E.generateWeek = function (monday) {
-    var S = SOS.S, st = S.settings, plan = [], used = {};
-    var sc = E.discScores(monday);
-    var discs = Object.keys(sc).filter(function (d) { return sc[d] > 0; });
-    var totalScore = discs.reduce(function (a, d) { return a + sc[d]; }, 0) || 1;
-    var slotsWeek = 6 * 3 - 1; // sábado tem discursiva
-    var target = {}, got = {};
-    discs.forEach(function (d) { target[d] = sc[d] / totalScore * slotsWeek; got[d] = 0; });
-    var takenTopics = {};
-    S.atividades.forEach(function (a) { if (a.data >= monday && a.data <= U.addDays(monday, 6) && a.topicId && !(a.gerado && a.status === 'nao')) takenTopics[a.topicId] = (takenTopics[a.topicId] || 0) + 1; });
-    var w = E.phaseWeights(monday);
-
-    function nextTopic(disc, dayDate) {
-      var cand = S.topicos.filter(function (t) { return t.disc === disc && (takenTopics[t.id] || 0) < 2 && E.priority(t, dayDate, w) > 0 && (t.status !== 'finalizado' || (t.rev && t.rev.next <= dayDate)); });
+  /* gera o plano de um período (de 'from' até 'to', no máximo até a prova) */
+  E.generateRange = function (from, to) {
+    var S = SOS.S, st = S.settings, plan = [], taken = {}, exam = E.examDate();
+    if (exam && to > exam) to = exam;
+    S.atividades.forEach(function (a) { if (a.topicId && a.data >= from && a.data <= to && !(a.gerado && a.status === 'nao')) taken[a.topicId] = (taken[a.topicId] || 0) + 1; });
+    var w = E.phaseWeights(from), sc = E.discScores(from);
+    var discs = Object.keys(sc).filter(function (d) { return sc[d] > 0 && d !== 'LEGC'; }); // LEGC tem o bloco diário de lei seca
+    var tot = discs.reduce(function (x, d) { return x + sc[d]; }, 0) || 1, got = {}, slots = 0;
+    discs.forEach(function (d) { got[d] = 0; });
+    var leiIdx = 0, leiCnt = {};
+    function nextTopic(disc, day, dayTopics) {
+      var cand = S.topicos.filter(function (t) { return t.disc === disc && !dayTopics[t.id] && (taken[t.id] || 0) < 3 && E.priority(t, day, w) > 0 && (t.status !== 'finalizado' || (t.rev && t.rev.next <= day)); });
       if (!cand.length) return null;
       cand.sort(function (a, b) {
-        var pa = E.priority(a, dayDate, w), pb = E.priority(b, dayDate, w);
-        pa /= 1 + (takenTopics[a.id] || 0) * 2; pb /= 1 + (takenTopics[b.id] || 0) * 2;
+        var pa = E.priority(a, day, w) / (1 + (taken[a.id] || 0) * 2), pb = E.priority(b, day, w) / (1 + (taken[b.id] || 0) * 2);
         if (Math.abs(pa - pb) > 0.15 * Math.max(pa, pb)) return pb - pa;
-        return a.seedOrder - b.seedOrder; // respeita a ordem do edital
+        return a.seedOrder - b.seedOrder;
       });
       return cand[0];
     }
-    for (var i = 0; i < 7; i++) {
-      var d = U.addDays(monday, i), dw = U.dow(d);
-      if (U.diffDays(U.today(), d) < 0) continue; // não planeja o passado
-      var anyExam = S.concursos.some(function (c) { return c.dataProva === d; });
-      if (anyExam) { plan.push(mk(d, null, 'Simulado', 0, 'Dia de prova: ' + S.concursos.filter(function (c) { return c.dataProva === d; }).map(function (c) { return c.sigla; }).join(' + '), 'prova')); continue; }
-      if (dw === 0) {
-        var nextExam = S.concursos.filter(function (c) { return c.dataProva > d; }).sort(function (a, b) { return a.dataProva < b.dataProva ? -1 : 1; })[0];
-        plan.push(mk(d, null, 'Simulado', 150, 'Simulado' + (nextExam ? ' — formato ' + nextExam.sigla : ''), 'simulado'));
-        plan.push(mk(d, null, 'Revisão', 40, 'Revisão dos conteúdos da semana + análise de desempenho', 'domingo'));
-        plan.push(mk(d, null, 'Revisão', 30, 'Revisão do Caderno de Erros', 'erros'));
-        plan.push(mk(d, null, 'Flashcards', 20, 'Flashcards pendentes', 'flashcards'));
-        plan.push(mk(d, null, 'Revisão', 15, 'Ajustes no planejamento da semana seguinte', 'ajuste'));
+    for (var d = from; d <= to; d = U.addDays(d, 1)) {
+      if (d < U.today()) continue;
+      var dw = U.dow(d), left = exam ? U.diffDays(d, exam) : 99, final = E.isRetaFinal(d);
+      if (d === exam) { plan.push(mk(d, null, 'Simulado', 0, 'Dia da prova — ' + (S.concursos[0] ? S.concursos[0].sigla : '') + '. Você se preparou: boa prova! ♡', 'prova')); continue; }
+      if (left === 1) {
+        plan.push(mk(d, null, 'Flashcards', 30, 'Véspera: flashcards dos seus erros (só os principais)', 'flashcards'));
+        plan.push(mk(d, null, 'Lei seca', 30, 'Véspera: leitura leve dos destaques do Nível 1', 'leirev'));
+        plan.push(mk(d, null, 'Revisão', 20, 'Véspera: separe documento com foto, caneta transparente preta/azul e o Cartão de Confirmação. Durma cedo.', 'ajuste'));
         continue;
       }
-      var blocks = dayBlocks(st.minDia);
-      var dayDiscs = [];
-      plan.push(mk(d, null, 'Revisão', 30, 'Fila de revisões do dia', 'revisoes'));
-      plan.push(mk(d, null, 'Flashcards', 15, 'Flashcards do dia', 'flashcards'));
-      var nb = 3;
-      if (dw === 6) {
-        var discConc = S.concursos.filter(function (c) { return c.discursiva && c.discursiva.existe && c.dataProva >= d; });
-        if (discConc.length) { plan.push(mk(d, null, 'Discursiva', blocks[0], 'Discursiva (20–30 linhas, tema específico) — ' + discConc.map(function (c) { return c.sigla; }).join(' / '), 'discursiva')); nb = 2; blocks = blocks.slice(1); }
+      if (isSimDay(d)) {
+        plan.push(mk(d, null, 'Simulado', 270, 'Simulado no formato da prova: 70 questões + discursiva em 4h30', 'simulado'));
+        plan.push(mk(d, null, 'Revisão', 40, 'Correção do simulado: erros vão para o Caderno de Erros', 'erros'));
+        if (dw === 0) plan.push(mk(d, null, 'Revisão', 15, 'Ajuste da semana seguinte', 'ajuste'));
+        continue;
       }
-      for (var b = 0; b < nb && b < st.maxDisciplinasDia; b++) {
-        var order = discs.slice().sort(function (x, y) { return (target[y] - got[y]) - (target[x] - got[x]); });
+      var rev = final ? 60 : 30, fc = final ? 25 : 15, used = rev + fc;
+      plan.push(mk(d, null, 'Revisão', rev, final ? 'Reta final: fila de revisões + Caderno de Erros' : 'Fila de revisões do dia', 'revisoes'));
+      plan.push(mk(d, null, 'Flashcards', fc, 'Flashcards do dia', 'flashcards'));
+      var dayTopics = {}, dayDiscs = [];
+      // lei seca: uma norma por dia, bloco curto; na véspera de simulado vira revisão dos destaques
+      var norma = E.NORMAS[leiIdx++ % E.NORMAS.length], nt = SOS.topic(norma);
+      if (nt) {
+        var revLei = isSimDay(U.addDays(d, 1)), n = leiCnt[norma] = (leiCnt[norma] || 0) + 1;
+        var tit = SOS.leiPrior ? SOS.leiPrior.blocoTitulo(norma, n, revLei) : (revLei ? 'Revisão de lei seca — Nível 1' : 'Lei seca — Nível 1');
+        plan.push(mk(d, nt, 'Lei seca', 35, tit, revLei ? 'leirev' : 'leiseca'));
+        used += 35; dayTopics[nt.id] = 1; dayDiscs.push(nt.disc);
+      }
+      if (dw === 6) { plan.push(mk(d, null, 'Discursiva', 60, 'Discursiva (20–30 linhas, tema do conteúdo específico)', 'discursiva')); used += 60; }
+      var nb = Math.max(0, st.maxDisciplinasDia - dayDiscs.length), rest = Math.max(0, st.minDia - used);
+      var blocks = []; for (var k = 0; k < nb; k++) blocks.push(Math.round(rest / nb / 5) * 5);
+      for (var b = 0; b < blocks.length; b++) {
+        slots++;
+        var order = discs.slice().sort(function (x, y) { return (sc[y] / tot * slots - got[y]) - (sc[x] / tot * slots - got[x]); });
         var chosen = null, topic = null;
-        for (var k = 0; k < order.length; k++) {
-          var dd = order[k];
-          if (dayDiscs.indexOf(dd) > -1) continue;
-          if (dayDiscs.some(function (x) { return E.conflicts(x, dd); })) continue;
-          if (dayDiscs.length >= st.maxDisciplinasDia) break;
-          topic = nextTopic(dd, d);
-          if (topic) { chosen = dd; break; }
+        for (var j = 0; j < order.length; j++) {
+          var dd = order[j];
+          if (dayDiscs.indexOf(dd) > -1 || dayDiscs.some(function (x) { return E.conflicts(x, dd); })) continue;
+          topic = nextTopic(dd, d, dayTopics); if (topic) { chosen = dd; break; }
         }
         if (!chosen) continue;
-        dayDiscs.push(chosen); got[chosen]++; takenTopics[topic.id] = (takenTopics[topic.id] || 0) + 1;
-        var m = pickMethod(topic), dur = blocks[b];
-        if (topic.status === 'nao' && dur >= 60) {
-          plan.push(mk(d, topic, m, dur - 30, '', 'estudo'));
-          plan.push(mk(d, topic, 'Questões', 30, 'Questões da Selecon sobre o tópico estudado', 'estudo'));
-        } else plan.push(mk(d, topic, m, dur, '', 'estudo'));
+        dayDiscs.push(chosen); got[chosen]++; dayTopics[topic.id] = 1; taken[topic.id] = (taken[topic.id] || 0) + 1;
+        var m = pickMethod(topic), dur = blocks[b], a = mk(d, topic, m, dur, '', 'estudo');
+        a.partes = m === 'Questões + revisão' ? [{ metodo: 'Questões', min: Math.max(15, dur - 15) }, { metodo: 'Revisão', min: 15 }] : [{ metodo: m.split(' + ')[0], min: Math.max(15, dur - 30) }, { metodo: 'Questões', min: 30 }];
+        plan.push(a);
       }
     }
     return plan;
     function mk(data, t, metodo, min, titulo, tipo) {
       return { id: U.uid('a'), data: data, topicId: t ? t.id : null, disc: t ? t.disc : null, metodo: metodo, planMin: min, titulo: titulo || '', tipo: tipo, status: 'nao', obs: '', gerado: true };
     }
+  };
+  E.generateWeek = function (monday) { return E.generateRange(monday, U.addDays(monday, 6)); };
+  /* acrescenta atividades garantindo UM cartão por assunto por dia (une com o que já existe) */
+  E.addActivities = function (list) {
+    var S = SOS.S, merged = 0;
+    list.forEach(function (a) {
+      var ex = a.topicId && S.atividades.find(function (x) { return x.topicId === a.topicId && x.data === a.data && x.status !== 'feito'; });
+      if (!ex) { S.atividades.push(a); return; }
+      var c = SOS.combineActivities([ex, a]); c.id = ex.id; c.gerado = ex.gerado && a.gerado;
+      S.atividades[S.atividades.indexOf(ex)] = c; merged++;
+    });
+    return merged;
+  };
+  /* recalcula o plano de hoje até a prova (substitui só o que foi gerado e não começou) */
+  E.replanAll = function () {
+    var S = SOS.S, t = U.today(), exam = E.examDate();
+    if (!exam || exam < t) return { removidas: 0, novas: 0 };
+    var antes = S.atividades.length;
+    S.atividades = S.atividades.filter(function (a) { return !(a.gerado && a.status === 'nao' && a.data >= t); });
+    var removidas = antes - S.atividades.length;
+    var plan = E.generateRange(t, exam);
+    E.addActivities(plan);
+    return { removidas: removidas, novas: plan.length };
   };
 
   /* ---------- reorganização automática (sempre com aprovação) ---------- */
