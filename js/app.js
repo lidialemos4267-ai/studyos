@@ -72,6 +72,7 @@
       delete SOS.S.replanPendente; SOS.saveNow();
     }
     if (SOS.cards) { if (SOS.cards.autoGenerate()) SOS.saveNow(); }
+    if (SOS.S.migr4Aviso) { delete SOS.S.migr4Aviso; SOS.saveNow(); setTimeout(function () { ui.toast('Chapada dos Guimarães (Ouvidor, 22/11) está de volta no plano, junto com o Técnico. ♡', 'good', 7000); }, 600); }
     window.addEventListener('hashchange', function () { app.render(); window.scrollTo(0, 0); closeMenu(); });
     ui.$('#concFilter').addEventListener('change', function (e) { app.conc = e.target.value; try { localStorage.setItem('studyos.ui.conc', app.conc); } catch (x) { /* ok */ } app.render(); });
     ui.$('#quickSession').addEventListener('click', function () { ui.sessionModal(); });

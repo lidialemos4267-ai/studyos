@@ -25,10 +25,18 @@ const check = (c, m) => { if (c) { ok++; console.log('  ✓ ' + m); } else { fal
   let { ctx, p } = await abrir();
   if (await p.$('.modal')) await p.click('.modal-f .btn');
   const c1 = await p.evaluate(() => ({ conc: SOS.S.concursos.map(c => c.id), data: SOS.S.concursos[0].dataProva, turno: SOS.S.concursos[0].turno, ana: SOS.S.topicos.some(t => t.refs.some(r => r.c === 'ANA')), ap: SOS.S.topicos.some(t => t.disc === 'AP'), filtro: getComputedStyle(document.querySelector('#concFilter')).display, cfg: SOS.CONFIG.datas.filter(d => !d.data).map(d => d.id) }));
-  check(c1.conc.join() === 'TEC', 'só o Técnico Legislativo como concurso');
+  check(c1.conc.join() === 'TEC,OUV', 'Técnico Legislativo (principal) + Chapada · Ouvidor; Analista fora');
   check(c1.data === '2026-12-20' && c1.turno === 'Tarde', 'prova em 20/12/2026, à tarde (do arquivo de configuração)');
   check(!c1.ana && !c1.ap, 'nenhum tópico/vínculo do Analista Legislativo');
-  check(c1.filtro === 'none', 'filtro de concurso escondido (cargo único)');
+  check(c1.filtro !== 'none', 'filtro de concurso visível (dois concursos)');
+  const ch = await p.evaluate(() => { const A = SOS.S.atividades, by = d => A.filter(a => a.data === d); const w = SOS.E.phaseWeights('2026-11-10'), w2 = SOS.E.phaseWeights('2026-11-30');
+    const antes = A.filter(a => a.data < '2026-11-22' && a.metodo === 'Lei seca' && a.topicId).map(a => a.topicId);
+    return { data: SOS.conc('OUV').dataProva, prova: by('2026-11-22').some(a => a.tipo === 'prova'), vesp: by('2026-11-21').reduce((x, a) => x + a.planMin, 0), w: [w.OUV, w.TEC], w2: [w2.OUV, w2.TEC], lai: antes.includes('lf02') && antes.includes('lf03'), simCh: by('2026-11-15').some(a => /Chapada/.test(a.titulo)), depois: A.filter(a => a.data > '2026-11-22' && a.topicId).every(a => SOS.topic(a.topicId).concursos.includes('TEC')) }; });
+  console.log('   ', JSON.stringify(ch));
+  check(ch.data === '2026-11-22' && ch.prova && ch.vesp > 0 && ch.vesp <= 90, 'Chapada: prova em 22/11 no plano, véspera leve');
+  check(ch.w[0] === 0.6 && ch.w[1] === 0.4 && ch.w2[0] === 0 && ch.w2[1] === 1, 'pesos: 60% Chapada / 40% Câmara até 22/11; depois 100% Técnico');
+  check(ch.lai && ch.simCh && ch.depois, 'LAI e Lei 13.460 na lei seca antes de Chapada, simulado no formato de Chapada, e depois só conteúdo do Técnico');
+  check(/dias<\/b> para Chapada|para Chapada/.test(await p.textContent('.hero')), 'contagem de Chapada no início');
   check(['locais', 'gabarito', 'recursos', 'res_objetiva', 'res_discursiva', 'res_final'].every(x => c1.cfg.includes(x)), 'datas pendentes marcadas como “a confirmar”');
   const html = (await p.content()) + fs.readFileSync(path.join(__dirname, '..', 'js', 'seed.js'), 'utf8');
   check(!/2026-12-13'|13\/12\/2026\s*\(dom/.test(html.replace(/adiada de 13\/12\/2026|dataAnterior: '2026-12-13'/g, '')), 'nenhuma data 13/12/2026 em uso');
@@ -55,7 +63,7 @@ const check = (c, m) => { if (c) { ok++; console.log('  ✓ ' + m); } else { fal
   check(pl.ultimo === pl.ex && pl.prova, 'plano vai até o dia da prova (20/12)');
   check(pl.viol.length === 0, 'cada assunto 1 vez por dia, ≤3 disciplinas, Português ≠ Informática, 1 norma por dia' + (pl.viol.length ? ': ' + pl.viol.slice(0, 3) : ''));
   check(pl.simFin > pl.simAntes * 2 && pl.revFin > pl.revAntes, 'reta final (10 dias) com mais simulados e mais revisão');
-  check(pl.normas.length === 4 && pl.leiAntesSim > 3, 'lei seca das 4 normas, com revisão antes dos simulados');
+  check(['lc01', 'lc02', 'lc03', 'lc04'].every(x => pl.normas.includes(x)) && pl.leiAntesSim > 3, 'lei seca das 4 normas da Câmara (+ leis de Chapada antes de 22/11), com revisão antes dos simulados');
   check(pl.vesp > 0 && pl.vesp <= 90, 'véspera leve');
 
   console.log('3. Registro único por assunto/dia');
@@ -85,8 +93,8 @@ const check = (c, m) => { if (c) { ok++; console.log('  ✓ ' + m); } else { fal
   check(m.w.length === 1 && m.w[0][0] === 15 && m.w[0][1] === 11 && m.w[0][2] === 85 && /li o capítulo/.test(m.w[0][3]) && /extra/.test(m.w[0][3]), 'Informática do mesmo dia: 3 registros viraram 1 (tempos e questões somados, observações juntadas)');
   check(m.a.length === 1 && m.a[0][0] === 100 && m.a[0][2] === 'andamento', 'atividades do mesmo assunto/dia viraram 1 cartão (100 min, status “em andamento” por ser ambíguo)');
   check(m.amb >= 2, 'casos ambíguos sinalizados (concursos diferentes, status diferentes)');
-  check(m.conc.join() === 'TEC' && m.arq.includes('OUV') && !m.ap02 && m.s4, 'Analista removido, Chapada arquivada, registro antigo preservado');
-  check(m.errC.join() === 'TEC' && m.fc.join() === 'TEC', 'erros e flashcards associados só ao Técnico');
+  check(m.conc.join() === 'TEC,OUV' && !m.arq.includes('OUV') && !m.ap02 && m.s4, 'Analista removido, Chapada mantida, registro antigo preservado');
+  check(m.errC.join() === 'TEC,OUV' && !m.errC.includes('ANA') && !m.fc.includes('ANA'), 'erros e flashcards sem o Analista (tópico compartilhado: Técnico + Chapada)');
   check(m.q1 && m.q1[0] === false && m.q1[1] === 1, 'acerto comum do banco: conteúdo removido, contador mantido');
   const antes = await p.evaluate(() => JSON.stringify([SOS.S.sessoes.length, SOS.S.atividades.length]));
   await p.locator('.modal-f .btn', { hasText: 'Entendi' }).click(); await p.waitForTimeout(400);

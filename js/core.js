@@ -82,8 +82,8 @@
       minPorRevisao: 20,
       maxDisciplinasDia: 3,
       fase: { // pesos por concurso antes/depois da prova de Chapada
-        antes: { TEC: 100 },
-        depois: { TEC: 100 }
+        antes: { OUV: 60, TEC: 40 },
+        depois: { TEC: 100, OUV: 0 }
       },
       intervalosTopico: [1, 7, 15, 30, 60],
       intervalosErro: [1, 3, 7, 15, 30],
@@ -133,6 +133,7 @@
       (d.topicos || []).forEach(function (t) { if (alta[t.id] && t.inc === 'sd') { t.inc = 'alta'; t.incJust = 'Estimativa: perfil da Selecon (Sendera) indica cobrança frequente de ' + ({ lc01: 'Lei Orgânica do município', lc03: 'estatuto do servidor local', lh01: 'Lei Orgânica do município', lh02: 'estatuto do servidor local', hg18: 'atualidades do estado/município' }[t.id] || 'português tradicional (ortografia, acentuação, pontuação, regência)') + '. Não é garantia de cobrança; validar com provas anteriores.'; } });
     }
     if (SOS.migrateV3) SOS.migrateV3(d);
+    if (SOS.migrateV4) SOS.migrateV4(d);
     if (SOS.applyConfig) SOS.applyConfig(d);
     if (!d.diario) d.diario = {};
     if (!Array.isArray(d.cardDrafts)) d.cardDrafts = [];

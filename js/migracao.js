@@ -12,6 +12,43 @@
     c.dataConfirmada = true; c.vagas = C.concurso.vagasDetalhe; c.remuneracao = C.concurso.remuneracao;
     c.cronograma = C.datas;
     c.sigla = 'Técnico Legislativo';
+    (C.outros || []).forEach(function (o) {
+      var x = (d.concursos || []).find(function (y) { return y.id === o.id; }); if (!x) return;
+      x.dataProva = o.prova.data; x.turno = o.prova.turno; x.duracao = o.prova.duracao; x.dataConfirmada = true; x.cronograma = o.datas;
+      x.sigla = 'Chapada · ' + o.cargo;
+    });
+  };
+
+  /* v4: você também vai fazer Chapada dos Guimarães (Ouvidor) — reativa o que estava arquivado */
+  SOS.migrateV4 = function (d) {
+    if (d.migr4) return;
+    var seedC = SOS.seedConcursos(), seedT = SOS.parseSeedTopicos(seedC), arq = d.arquivo || { concursos: [], topicos: [], simulados: [] };
+    if (!d.concursos.some(function (c) { return c.id === 'OUV'; })) d.concursos.push(arq.concursos.find(function (c) { return c.id === 'OUV'; }) || seedC.find(function (c) { return c.id === 'OUV'; }));
+    var have = {}; d.topicos.forEach(function (t) { have[t.id] = t; });
+    var arqT = {}; (arq.topicos || []).forEach(function (t) { arqT[t.id] = t; });
+    seedT.forEach(function (st) {
+      var ouvRefs = st.refs.filter(function (r) { return r.c === 'OUV'; }); if (!ouvRefs.length) return;
+      var t = have[st.id];
+      if (t) { // tópico compartilhado: devolve os vínculos de Chapada
+        if (!t.refs.some(function (r) { return r.c === 'OUV'; })) t.refs = t.refs.concat(ouvRefs);
+        if (t.concursos.indexOf('OUV') < 0) t.concursos.push('OUV');
+        t.parcial = st.parcial; t.nota = st.nota;
+      } else { // só de Chapada: volta do arquivo (com o seu status) ou do edital
+        var back = arqT[st.id] || st; back.refs = ouvRefs; back.concursos = ['OUV'];
+        d.topicos.push(back); have[st.id] = back;
+      }
+    });
+    d.topicos.sort(function (a, b) { return (a.seedOrder || 0) - (b.seedOrder || 0); });
+    var used = {}; d.topicos.forEach(function (t) { used[t.disc] = 1; });
+    SOS.seedDisciplinas().forEach(function (x) { if (used[x.id] && !d.disciplinas.some(function (y) { return y.id === x.id; })) d.disciplinas.push(x); });
+    (arq.simulados || []).filter(function (s) { return s.concursoId === 'OUV'; }).forEach(function (s) { if (!d.simulados.some(function (y) { return y.id === s.id; })) d.simulados.push(s); });
+    if (SOS.leis && Array.isArray(d.leis)) SOS.leis.seed().forEach(function (l) { var t = have[l.topicId]; if (t && t.concursos.indexOf('OUV') > -1 && !d.leis.some(function (y) { return y.topicId === l.topicId; })) d.leis.push(l); });
+    d.erros.forEach(function (e) { var t = have[e.topicId]; if (t) e.concursos = t.concursos.slice(); });
+    d.flashcards.forEach(function (c) { var t = have[c.topicId]; if (t) c.concursos = t.concursos.slice(); });
+    if (arq) { arq.concursos = (arq.concursos || []).filter(function (c) { return c.id !== 'OUV'; }); arq.topicos = []; arq.simulados = (arq.simulados || []).filter(function (s) { return s.concursoId !== 'OUV'; }); }
+    d.settings.fase = { antes: { OUV: 60, TEC: 40 }, depois: { TEC: 100, OUV: 0 } };
+    d.migr4 = true; d.migr4Aviso = true; d.replanPendente = true;
+    (d.historico = d.historico || []).unshift({ t: new Date().toISOString(), acao: 'Migração v4', detalhe: 'Chapada dos Guimarães (Ouvidor) reativada junto com o Técnico Legislativo' });
   };
 
   function uniq(a) { var o = []; a.forEach(function (x) { if (x && o.indexOf(x) < 0) o.push(x); }); return o; }

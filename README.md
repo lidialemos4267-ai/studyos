@@ -1,16 +1,19 @@
-# StudyOS — Técnico Legislativo · Câmara Municipal de Cuiabá
+# StudyOS — Técnico Legislativo (Câmara de Cuiabá) + Ouvidor (Chapada dos Guimarães)
 
-Plano de estudos simples e motivador para **um único objetivo**:
+Plano de estudos simples e motivador. **Foco principal: Técnico Legislativo.** Chapada dos Guimarães entra até a prova de 22/11:
 
 | Cargo | Banca | Vagas | Prova |
 |---|---|---|---|
 | Técnico Legislativo (CNM 01) — Edital nº 001/2026-CMC | Instituto Selecon | 11 (8 AC · 1 PcD · 2 NI) + CR | **20/12/2026, tarde, 4h30** — objetiva (70 questões, 100 pts) + discursiva (100 pts). Adiada de 13/12/2026. |
+| Ouvidor — Prefeitura de Chapada dos Guimarães (Edital 001/2026, consolidado) | Instituto Selecon | 1 + CR | **22/11/2026, manhã, 4h** — 40 questões / 50 pts (específico = 60%). |
+
+**Pesos do plano:** até 22/11, 60% Chapada e 40% Câmara (os conteúdos comuns contam para os dois). Depois, 100% Técnico. Ajuste em *Configurações*.
 
 Inscrições até **30/11/2026 (23h59)** · boleto até **01/12/2026**. Locais de prova, gabarito, recursos e resultados: **a confirmar** (aguardando retificação do edital).
 
 ## Onde editar as datas
 
-**Só em um arquivo:** [`js/config-concurso.js`](js/config-concurso.js). Quando sair a retificação, troque a data (formato `AAAA-MM-DD`) e o status do item. Ao recarregar o site, a contagem regressiva, o calendário e o plano passam a usar a data nova. Para redistribuir o plano depois de mudar a data da prova, use **Planejamento › Recalcular até a prova**.
+**Só em um arquivo:** [`js/config-concurso.js`](js/config-concurso.js). As datas de Chapada ficam na seção `outros` do mesmo arquivo. Quando sair a retificação, troque a data (formato `AAAA-MM-DD`) e o status do item. Ao recarregar o site, a contagem regressiva, o calendário e o plano passam a usar a data nova. Para redistribuir o plano depois de mudar a data da prova, use **Planejamento › Recalcular até a prova**.
 
 ## Como abrir
 

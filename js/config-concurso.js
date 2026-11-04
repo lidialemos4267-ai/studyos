@@ -40,6 +40,24 @@ SOS.CONFIG = {
     { id: 'res_final', rotulo: 'Resultado final', data: null, status: 'a confirmar (aguardando retificação do edital)' }
   ],
 
+  /* outros concursos que você também vai fazer (datas do Edital 001/2026 de Chapada, consolidado c/ Retificações 01 e 02) */
+  outros: [
+    {
+      id: 'OUV', cargo: 'Ouvidor', orgao: 'Prefeitura de Chapada dos Guimarães-MT', vagas: 1,
+      prova: { data: '2026-11-22', turno: 'Manhã', duracao: '4h', descricao: 'Prova objetiva (40 questões)' },
+      datas: [
+        { id: 'cce', rotulo: 'Cartão de Convocação (local da prova)', data: '2026-11-17', hora: 'a partir das 17h', status: 'confirmada' },
+        { id: 'cce_correcao', rotulo: 'Prazo para corrigir dados no Cartão de Convocação', data: '2026-11-18', hora: 'até 23h59', status: 'confirmada' },
+        { id: 'prova', rotulo: 'Prova objetiva — Chapada (Ouvidor)', data: '2026-11-22', hora: 'manhã · 4h', status: 'confirmada' },
+        { id: 'gabarito', rotulo: 'Gabarito e caderno de questões — Chapada', data: '2026-11-23', hora: 'a partir das 17h', status: 'confirmada' },
+        { id: 'recursos', rotulo: 'Recursos contra o gabarito — Chapada', data: '2026-11-24', hora: 'até 25/11, 23h59', status: 'confirmada' },
+        { id: 'res_objetiva', rotulo: 'Resultado final da objetiva — Chapada', data: '2026-12-14', hora: 'a partir das 17h', status: 'confirmada' },
+        { id: 'titulos', rotulo: 'Envio dos títulos — Chapada (convocados)', data: '2027-01-13', hora: 'até 14/01, 23h59', status: 'confirmada' },
+        { id: 'res_final', rotulo: 'Resultado final — Chapada', data: '2027-02-18', hora: 'a partir das 17h', status: 'confirmada' }
+      ]
+    }
+  ],
+
   /* ritmo do plano */
   retaFinalDias: 10            // últimos N dias antes da prova: mais revisão e simulados
 };

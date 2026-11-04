@@ -96,7 +96,8 @@
 
   /* título dos blocos curtos de lei seca no cronograma: percorre os temas do Nível 1 e depois do 2 */
   P.blocoTitulo = function (tid, n, revisao) {
-    var N = P.NORMAS[tid]; if (!N) return 'Lei seca';
+    var N = P.NORMAS[tid];
+    if (!N) { var t = SOS.topic(tid); var nome = t ? t.titulo.split(' — ')[0].split(' (')[0] : 'Lei seca'; return (revisao ? 'Revisão de lei seca — ' : 'Lei seca — ') + nome + (t && t.concursos.indexOf('OUV') > -1 && t.concursos.length === 1 ? ' (Chapada)' : ''); }
     var curto = N.nome.split(' — ')[0].replace(' do Município de Cuiabá', '').replace(' da Câmara Municipal de Cuiabá', '');
     if (revisao) return 'Revisão de lei seca — ' + curto + ': destaques do Nível 1 (antes do simulado)';
     var lista = N.temas.filter(function (t) { return t.n === 1; }).concat(N.temas.filter(function (t) { return t.n === 2; }));

@@ -22,7 +22,7 @@
     semCulpa: ['Sem culpa: recomeça hoje. Um cartão já conta.', 'Ontem ficou para trás. Hoje é um dia novo e inteiro.', 'Parar um dia não apaga o que você construiu. Volta com calma.', 'Recomeçar também é disciplina. Escolha um assunto curtinho.', 'Ninguém estuda perfeito todo dia. O que importa é voltar.'],
     meta: ['Meta batida! Orgulho de você. ♡', 'Você fez o que se propôs hoje. Descanse com a consciência leve.', 'Dia cumprido! Isso é constância de verdade.', 'Mais um dia somado. É assim que se passa.', 'Meta do dia: feito. Agora é cuidar de você.'],
     retaFinal: ['Reta final: revisão e simulado valem ouro agora.', 'Faltam poucos dias. Confie no que já estudou e revise os erros.', 'Agora é lapidar: lei seca do Nível 1, flashcards e simulado.', 'Menos conteúdo novo, mais revisão. Você está pronta para lapidar.', 'Cada erro revisado hoje é um ponto a mais no dia 20.'],
-    vespera: ['Amanhã é o dia. Revise leve, separe tudo e durma cedo. Você se preparou. ♡', 'Véspera: nada de maratona. Só os destaques e descanso.'],
+    vespera: ['Amanhã tem prova. Revise leve, separe tudo e durma cedo. Você se preparou. ♡', 'Amanhã é o dia. Revise leve, separe tudo e durma cedo. Você se preparou. ♡', 'Véspera: nada de maratona. Só os destaques e descanso.'],
     prova: ['Hoje é o seu dia. Respira fundo, lê com calma e confia em você. Boa prova! ♡'],
     depois: ['Prova feita! Seja gentil com você — você foi até o fim. ♡']
   };
@@ -51,7 +51,8 @@
   };
   M.frase = function () {
     var t = U.today(), ex = E.examDate(), left = ex ? U.diffDays(t, ex) : 99, h = new Date().getHours(), F = M.FRASES, hj = M.hoje(), k;
-    if (left < 0) k = 'depois'; else if (left === 0) k = 'prova'; else if (left === 1) k = 'vespera';
+    var ch = E.chapada(), lc = ch ? U.diffDays(t, ch.dataProva) : 99;
+    if (left < 0) k = 'depois'; else if (left === 0 || lc === 0) k = 'prova'; else if (left === 1 || lc === 1) k = 'vespera';
     else if (hj.bateu) k = 'meta';
     else if (!M.estudouEm(t) && !M.estudouEm(U.addDays(t, -1)) && SOS.S.sessoes.length) k = 'semCulpa';
     else if (left <= E.retaFinalDias()) k = 'retaFinal';
@@ -83,6 +84,7 @@
         '<div class="hero-side"><p class="hero-why">' + U.esc(C.concurso.cargo) + ' · Câmara de Cuiabá · ' + C.concurso.vagas + ' vagas · prova em ' + U.fmtShort(ex) + ' (' + U.esc(C.prova.turno.toLowerCase()) + ', ' + U.esc(C.prova.duracao) + ')</p>' +
         '<p class="hero-quote">“' + U.esc(fr.txt) + '”</p>' +
         (inscFim && agora < inscFim ? (function () { var ms = inscFim - agora, d = Math.floor(ms / 86400000), hh = Math.floor(ms % 86400000 / 3600000); return '<div class="hero-insc"><b>' + d + ' d ' + hh + ' h</b> para o fim das inscrições (' + U.fmtShort(insc.data) + ', ' + insc.hora + ') · boleto até 01/12</div>'; })() : '') +
+        (function () { var ch = E.chapada(); if (!ch || ch.dataProva < t) return ''; var dd = U.diffDays(t, ch.dataProva); return '<div class="hero-insc" style="margin-left:6px">' + (dd === 0 ? '<b>Hoje</b> é a prova de Chapada · Ouvidor (manhã). Boa prova! ♡' : '<b>' + dd + ' ' + (dd === 1 ? 'dia' : 'dias') + '</b> para Chapada · Ouvidor (' + U.fmtShort(ch.dataProva) + ', manhã)') + '</div>'; })() +
         '</div></section>';
       // hoje: meta, sequência e "conquistei hoje"
       var pm = Math.min(100, hj.min / hj.meta * 100);

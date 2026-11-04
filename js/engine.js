@@ -304,6 +304,13 @@
   /* ---------- planejamento semanal ---------- */
   /* ---------- planejamento (um cartão por assunto por dia) ---------- */
   E.examDate = function () { var c = SOS.S.concursos[0]; return c ? c.dataProva : null; };
+  E.chapada = function () { return SOS.conc('OUV'); };
+  /* lei seca: antes da prova de Chapada entram LAI, Lei 13.460, LGPD e Lei Orgânica de Chapada no rodízio */
+  E.normasDoDia = function (d) {
+    var ch = E.chapada();
+    if (ch && d < ch.dataProva) return ['lf02', 'lc01', 'lf03', 'lc02', 'lf01', 'lc03', 'lh01', 'lc04'].filter(function (x) { return SOS.topic(x); });
+    return E.NORMAS;
+  };
   E.retaFinalDias = function () { return (SOS.CONFIG && SOS.CONFIG.retaFinalDias) || 10; };
   E.isRetaFinal = function (d) { var ex = E.examDate(); return !!ex && d < ex && U.diffDays(d, ex) <= E.retaFinalDias(); };
   function pickMethod(t) {
@@ -330,10 +337,16 @@
     var S = SOS.S, st = S.settings, plan = [], taken = {}, exam = E.examDate();
     if (exam && to > exam) to = exam;
     S.atividades.forEach(function (a) { if (a.topicId && a.data >= from && a.data <= to && !(a.gerado && a.status === 'nao')) taken[a.topicId] = (taken[a.topicId] || 0) + 1; });
-    var w = E.phaseWeights(from), sc = E.discScores(from);
-    var discs = Object.keys(sc).filter(function (d) { return sc[d] > 0 && d !== 'LEGC'; }); // LEGC tem o bloco diário de lei seca
-    var tot = discs.reduce(function (x, d) { return x + sc[d]; }, 0) || 1, got = {}, slots = 0;
-    discs.forEach(function (d) { got[d] = 0; });
+    var w, sc, discs, tot, got, slots, fase = null;
+    function prepararFase(day) { // os pesos mudam no dia seguinte à prova de Chapada
+      var ch0 = E.chapada(), f = ch0 && day <= ch0.dataProva ? 'antes' : 'depois';
+      if (f === fase) return; fase = f;
+      w = E.phaseWeights(day); sc = E.discScores(day);
+      discs = Object.keys(sc).filter(function (d) { return sc[d] > 0 && d !== 'LEGC'; }); // LEGC tem o bloco diário de lei seca
+      tot = discs.reduce(function (x, d) { return x + sc[d]; }, 0) || 1; got = {}; slots = 0;
+      discs.forEach(function (d) { got[d] = 0; });
+    }
+    prepararFase(from);
     var leiIdx = 0, leiCnt = {};
     function nextTopic(disc, day, dayTopics) {
       var cand = S.topicos.filter(function (t) { return t.disc === disc && !dayTopics[t.id] && (taken[t.id] || 0) < 3 && E.priority(t, day, w) > 0 && (t.status !== 'finalizado' || (t.rev && t.rev.next <= day)); });
@@ -347,8 +360,17 @@
     }
     for (var d = from; d <= to; d = U.addDays(d, 1)) {
       if (d < U.today()) continue;
+      prepararFase(d);
       var dw = U.dow(d), left = exam ? U.diffDays(d, exam) : 99, final = E.isRetaFinal(d);
       if (d === exam) { plan.push(mk(d, null, 'Simulado', 0, 'Dia da prova — ' + (S.concursos[0] ? S.concursos[0].sigla : '') + '. Você se preparou: boa prova! ♡', 'prova')); continue; }
+      var ch = E.chapada();
+      if (ch && d === ch.dataProva) { plan.push(mk(d, null, 'Simulado', 0, 'Dia da prova de Chapada (Ouvidor), manhã — boa prova! ♡ À tarde, só descanso.', 'prova')); continue; }
+      if (ch && U.diffDays(d, ch.dataProva) === 1) {
+        plan.push(mk(d, null, 'Flashcards', 30, 'Véspera de Chapada: flashcards dos seus erros', 'flashcards'));
+        plan.push(mk(d, null, 'Lei seca', 40, 'Véspera de Chapada: LAI, Lei 13.460 e LGPD — só os destaques', 'leirev'));
+        plan.push(mk(d, null, 'Revisão', 20, 'Véspera: documento com foto, caneta transparente, Cartão de Convocação (sai em 17/11). Durma cedo.', 'ajuste'));
+        continue;
+      }
       if (left === 1) {
         plan.push(mk(d, null, 'Flashcards', 30, 'Véspera: flashcards dos seus erros (só os principais)', 'flashcards'));
         plan.push(mk(d, null, 'Lei seca', 30, 'Véspera: leitura leve dos destaques do Nível 1', 'leirev'));
@@ -356,7 +378,8 @@
         continue;
       }
       if (isSimDay(d)) {
-        plan.push(mk(d, null, 'Simulado', 270, 'Simulado no formato da prova: 70 questões + discursiva em 4h30', 'simulado'));
+        var antesCh = ch && d < ch.dataProva;
+        plan.push(antesCh ? mk(d, null, 'Simulado', 240, 'Simulado no formato de Chapada: 40 questões em 4h (específico do Ouvidor vale 60%)', 'simulado') : mk(d, null, 'Simulado', 270, 'Simulado no formato da Câmara: 70 questões + discursiva em 4h30', 'simulado'));
         plan.push(mk(d, null, 'Revisão', 40, 'Correção do simulado: erros vão para o Caderno de Erros', 'erros'));
         if (dw === 0) plan.push(mk(d, null, 'Revisão', 15, 'Ajuste da semana seguinte', 'ajuste'));
         continue;
@@ -366,7 +389,7 @@
       plan.push(mk(d, null, 'Flashcards', fc, 'Flashcards do dia', 'flashcards'));
       var dayTopics = {}, dayDiscs = [];
       // lei seca: uma norma por dia, bloco curto; na véspera de simulado vira revisão dos destaques
-      var norma = E.NORMAS[leiIdx++ % E.NORMAS.length], nt = SOS.topic(norma);
+      var rod = E.normasDoDia(d), norma = rod[leiIdx++ % rod.length], nt = SOS.topic(norma);
       if (nt) {
         var revLei = isSimDay(U.addDays(d, 1)), n = leiCnt[norma] = (leiCnt[norma] || 0) + 1;
         var tit = SOS.leiPrior ? SOS.leiPrior.blocoTitulo(norma, n, revLei) : (revLei ? 'Revisão de lei seca — Nível 1' : 'Lei seca — Nível 1');
