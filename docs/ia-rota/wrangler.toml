@@ -1,0 +1,8 @@
+# Configuração do Cloudflare Worker da rota de IA do StudyOS
+name = "studyos-ia"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# endereços que podem chamar a rota (separados por vírgula)
+ORIGENS_PERMITIDAS = "https://lidialemos4267-ai.github.io"

@@ -94,7 +94,9 @@
       lembreteBackupDias: 7,
       metaDiariaMin: 240,         // meta diária simples (minutos)
       metaQuestoesTotal: 700,     // meta de questões até a prova
-      iaEndpoint: ''              // rota do servidor que gera flashcards com IA (a chave fica no servidor)
+      iaEndpoint: '',             // rota do servidor de IA (a chave fica no servidor)
+      leitorFonte: 17,            // tamanho da letra no leitor de lei seca (px)
+      leitorRealce: true          // realçar termos de atenção no leitor
     };
   };
 
@@ -137,6 +139,7 @@
     if (SOS.applyConfig) SOS.applyConfig(d);
     if (!d.diario) d.diario = {};
     if (!Array.isArray(d.cardDrafts)) d.cardDrafts = [];
+    if (!Array.isArray(d.questoesLei)) d.questoesLei = []; // questões A–E geradas a partir da lei seca
     return d;
   }
 
@@ -234,7 +237,7 @@
     if (mode === 'replace') { SOS.S = migrate(d); }
     else {
       var S = SOS.S;
-      ['concursos', 'disciplinas', 'topicos', 'atividades', 'sessoes', 'erros', 'flashcards', 'discursivas', 'temas', 'simulados', 'cadernos', 'leis', 'juris'].forEach(function (k) {
+      ['concursos', 'disciplinas', 'topicos', 'atividades', 'sessoes', 'erros', 'flashcards', 'discursivas', 'temas', 'simulados', 'cadernos', 'leis', 'juris', 'questoesLei', 'cardDrafts'].forEach(function (k) {
         S[k] = S[k] || [];
         var have = {}; (S[k] || []).forEach(function (x) { have[x.id] = x; });
         (d[k] || []).forEach(function (x) { if (!have[x.id]) S[k].push(x); });

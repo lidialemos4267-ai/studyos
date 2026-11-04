@@ -52,6 +52,24 @@
     }
     return out;
   };
+  /* atualiza o texto da norma sem perder marcações: os artigos com o mesmo número mantêm leitura, destaque,
+     anotação e marcações (relocalizadas no texto novo); o que não puder ser relocalizado com segurança é preservado
+     e sinalizado. Artigos que deixaram de existir e tinham anotações vão para l.orfaos. */
+  L.atualizarArts = function (l, novos) {
+    var old = {}, rel = { orfas: 0, orfaos: 0 };
+    l.arts.forEach(function (a) { old[a.n] = a; });
+    novos.forEach(function (a) {
+      var o = old[a.n]; if (!o) return;
+      Object.keys(o).forEach(function (k) { if (k !== 't' && k !== 'n' && k !== 'marks' && k !== 'alterado') a[k] = o[k]; });
+      if (o.t !== a.t) a.alterado = true; else if (o.alterado) a.alterado = o.alterado;
+      a.marks = (o.marks || []).map(function (m) { m = Object.assign({}, m); if (o.t !== a.t || m.orfa) SOS.lex.reancorar(m, a.t); if (m.orfa) rel.orfas++; return m; });
+      delete old[a.n];
+    });
+    l.orfaos = l.orfaos || [];
+    Object.keys(old).forEach(function (n) { var o = old[n]; if (o.nota || o.star || (o.marks || []).length) { l.orfaos.push({ n: o.n, t: o.t, nota: o.nota || '', star: !!o.star, marks: o.marks || [], em: U.today() }); rel.orfaos++; } });
+    l.arts = novos;
+    return rel;
+  };
   function prog(l) { var n = l.arts.length || l.totalArts || 0, lidos = l.arts.length ? l.arts.filter(function (a) { return a.lido; }).length : (l.lidosManual || 0); return { n: n, lidos: lidos, pct: n ? lidos / n * 100 : 0 }; }
   function examFor(topicId) {
     var t = SOS.topic(topicId); var cs = t ? t.concursos.map(function (c) { return SOS.conc(c); }).filter(Boolean) : SOS.S.concursos;
@@ -64,7 +82,7 @@
       L.st();
       var conc = SOS.app.conc;
       var leis = SOS.S.leis.filter(function (l) { var t = SOS.topic(l.topicId); return conc === 'all' || !t || t.concursos.indexOf(conc) > -1; });
-      var h = '<div class="tabs">' + [['prior', 'Prioridades (Nível 1/2/3)'], ['leis', 'Leis (' + leis.length + ')'], ['crono', 'Cronograma de lei seca'], ['juris', 'Jurisprudência (' + SOS.S.juris.length + ')']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      var h = '<div class="tabs">' + [['prior', 'Prioridades (Nível 1/2/3)'], ['leis', 'Leis (' + leis.length + ')'], ['crono', 'Cronograma de lei seca'], ['quest', 'Questões A–E (' + (SOS.leisQ ? SOS.leisQ.st().length : 0) + ')'], ['juris', 'Jurisprudência (' + SOS.S.juris.length + ')']].map(function (x) { return '<button class="tab ' + (tab === x[0] ? 'active' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
       if (tab === 'prior') h += vPrior();
       else if (tab === 'leis') {
         h += '<div class="row" style="margin-bottom:10px"><p class="muted" style="margin:0">Cole o texto oficial de cada norma: o StudyOS separa por artigos para você marcar como lido, destacar, anotar e criar flashcards. Para a Selecon, a legislação municipal (Lei Orgânica e Estatuto) costuma ser cobrada de forma direta — estimativa baseada no perfil da banca, não em análise de provas.</p><span class="spacer"></span><button class="btn sm" data-act="newLei">+ Nova norma</button></div>';
@@ -78,6 +96,8 @@
         var acts = SOS.S.atividades.filter(function (a) { return a.tipo === 'leiseca' || a.tipo === 'juris'; }).sort(function (a, b) { return a.data < b.data ? -1 : 1; });
         h += '<div class="row" style="margin-bottom:10px"><p class="muted" style="margin:0">Blocos de leitura distribuídos até a véspera da prova, de segunda a sábado. Eles aparecem no Planejamento e seguem as regras de carga diária.</p><span class="spacer"></span><button class="btn sm" data-act="planAny">+ Montar cronograma</button></div>';
         h += '<div class="card">' + (acts.length ? '<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Leitura</th><th class="num">Duração</th><th>Status</th></tr></thead><tbody>' + acts.map(function (a) { return '<tr><td>' + U.DIAS_C[U.dow(a.data)] + ' ' + U.fmtDate(a.data) + '</td><td>' + U.esc(a.titulo) + '</td><td class="num">' + U.fmtMin(a.planMin) + '</td><td>' + (a.status === 'feito' ? '<span class="tag good">feito</span>' : a.data < U.today() ? '<span class="tag bad">atrasado</span>' : '<span class="tag">a fazer</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">Nenhum bloco de lei seca ou jurisprudência no planejamento.</div>') + '</div>';
+      } else if (tab === 'quest') {
+        h += SOS.leisQ.view();
       } else {
         h += '<div class="alert info" style="display:block">Para os seus editais (Selecon, cargos municipais), jurisprudência tem peso menor que a lei seca — o conteúdo cobra principalmente legislação, princípios e noções. Registre aqui só o que aparecer nas questões ou nos comentários dos professores (por exemplo, súmulas sobre nepotismo, estágio probatório ou acumulação de cargos), sempre conferindo o texto na fonte oficial.</div>';
         h += '<div class="row" style="margin-bottom:10px"><span class="spacer"></span><button class="btn ghost sm" data-act="planJuris">Distribuir pendentes no planejamento</button><button class="btn sm" data-act="newJuris">+ Nova jurisprudência</button></div>';
@@ -115,6 +135,7 @@
   function onClick(e) {
     var x;
     if ((x = e.target.closest('[data-tab]'))) { tab = x.dataset.tab; return SOS.app.render(); }
+    if (tab === 'quest' && SOS.leisQ.onClick(e)) return;
     if ((x = e.target.closest('[data-norma]'))) { normaSel = x.dataset.norma; nivelSel = 1; return SOS.app.render(); }
     if ((x = e.target.closest('[data-nivel]'))) { nivelSel = +x.dataset.nivel; return SOS.app.render(); }
     if ((x = e.target.closest('[data-cards]'))) {
@@ -127,7 +148,7 @@
     }
     if (e.target.closest('[data-act=newLei]')) return leiForm(null);
     if ((x = e.target.closest('[data-text]'))) return leiForm(find(x.dataset.text));
-    if ((x = e.target.closest('[data-read]'))) return reader(find(x.dataset.read));
+    if ((x = e.target.closest('[data-read]'))) return SOS.leitor.abrir(find(x.dataset.read));
     if ((x = e.target.closest('[data-plan]'))) return planForm(find(x.dataset.plan));
     if (e.target.closest('[data-act=planAny]')) return planForm(null);
     if ((x = e.target.closest('[data-del]'))) { var l = find(x.dataset.del); return ui.confirm('Excluir “' + U.esc(l.nome) + '” e suas marcações? Blocos já planejados continuam no Planejamento.', function () { SOS.S.leis = SOS.S.leis.filter(function (y) { return y.id !== l.id; }); SOS.save(); SOS.app.render(); }); }
@@ -144,49 +165,20 @@
     ui.modal({
       title: isNew ? 'Nova norma' : l.nome, wide: true,
       body: '<div class="form"><label class="f full"><span>Nome</span><input name="nome" value="' + U.esc(l.nome) + '"></label><label class="f"><span>Tópico do edital</span><select name="topic">' + ui.topicOptions(l.topicId, null, true) + '</select></label><label class="f"><span>Link da fonte oficial</span><input name="link" value="' + U.esc(l.link) + '" placeholder="https://"></label>' +
-        '<label class="f full"><span>Texto da norma (cole do site oficial). Os artigos são separados automaticamente pelas linhas que começam com “Art.”.</span><textarea name="texto" rows="12">' + U.esc(l.texto) + '</textarea></label>' +
-        '<label class="f"><span>Sem o texto? Informe só o nº de artigos (para o cronograma)</span><input type="number" min="0" name="total" value="' + (l.totalArts || '') + '"></label></div>' + (l.arts.length ? '<div class="alert mid">Atualizar o texto mantém as marcações dos artigos com o mesmo número.</div>' : ''),
+        '<label class="f full"><span>Texto da norma (cole do site oficial). Os artigos são separados automaticamente pelas linhas que começam com “Art.”; parágrafos, incisos, alíneas e capítulos são reconhecidos só para a exibição — o texto fica exatamente como você colou.</span><textarea name="texto" rows="12">' + U.esc(l.texto) + '</textarea></label>' +
+        '<label class="f"><span>Sem o texto? Informe só o nº de artigos (para o cronograma)</span><input type="number" min="0" name="total" value="' + (l.totalArts || '') + '"></label></div>' + (l.arts.length ? '<div class="alert mid">Atualizar o texto mantém leitura, destaques, anotações e marcações dos artigos com o mesmo número. Se um trecho marcado mudar, a marcação é preservada e sinalizada para revisão.</div>' : ''),
       buttons: [{ label: 'Cancelar', cls: 'ghost' }, { label: 'Salvar', onClick: function (c, root) {
         var nome = ui.val(root, 'nome').trim(); if (!nome) { ui.toast('Informe o nome.', 'bad'); return false; }
         var texto = ui.val(root, 'texto');
         if (texto.length > 900000) { ui.toast('Texto muito grande para o navegador. Cole só os artigos cobrados.', 'bad', 6000); return false; }
-        var old = {}; l.arts.forEach(function (a) { old[a.n] = a; });
         l.nome = nome; l.topicId = ui.val(root, 'topic'); l.link = ui.val(root, 'link'); l.texto = texto;
-        l.arts = L.parse(texto).map(function (a) { var o = old[a.n]; if (o) { a.lido = o.lido; a.star = o.star; a.nota = o.nota; } return a; });
+        var rel = L.atualizarArts(l, L.parse(texto));
         l.totalArts = +ui.val(root, 'total') || 0;
         if (isNew) SOS.S.leis.push(l);
         SOS.log('Norma salva', l.nome + ' — ' + l.arts.length + ' artigos'); SOS.save(); SOS.app.render();
-        ui.toast(l.arts.length ? l.arts.length + ' artigos identificados.' : 'Norma salva.', 'good');
+        ui.toast(l.arts.length ? l.arts.length + ' artigos identificados.' + (rel.orfas ? ' ' + rel.orfas + ' marcação(ões) precisam ser revisadas.' : '') + (rel.orfaos ? ' ' + rel.orfaos + ' artigo(s) antigo(s) com anotações foram guardados para revisão.' : '') : 'Norma salva.', rel.orfas || rel.orfaos ? 'mid' : 'good', 7000);
       } }]
     });
-  }
-
-  function reader(l) {
-    var flt = 'todos', q = '';
-    var m = ui.modal({ title: l.nome, wide: true, noFocus: true, body: '<div class="row" style="margin-bottom:10px"><input type="search" id="lq" placeholder="Buscar no texto…" style="max-width:240px"><div class="seg" id="lf"><button data-f="todos" class="active">Todos</button><button data-f="nao">Não lidos</button><button data-f="star">Destacados</button><button data-f="nota">Com anotação</button></div><span class="spacer"></span><small id="lp" class="muted"></small></div><div id="arts"></div>', buttons: [{ label: 'Fechar', cls: 'ghost' }], onClose: function () { SOS.app.render(); } });
-    var root = m.root;
-    function draw() {
-      var arts = l.arts.map(function (a, i) { return { a: a, i: i }; }).filter(function (x) { return (flt === 'todos' || (flt === 'nao' && !x.a.lido) || (flt === 'star' && x.a.star) || (flt === 'nota' && x.a.nota)) && (!q || U.norm(x.a.t).indexOf(U.norm(q)) > -1); });
-      var p = prog(l); root.querySelector('#lp').textContent = p.lidos + ' de ' + p.n + ' lidos (' + Math.round(p.pct) + '%)';
-      root.querySelector('#arts').innerHTML = arts.slice(0, 400).map(function (x) {
-        return '<div class="card flat" style="margin-bottom:8px;' + (x.a.lido ? 'opacity:.75' : '') + (x.a.star ? ';border-color:var(--mid)' : '') + '"><div class="row"><b style="font-family:var(--f-head)">' + (/^\d/.test(x.a.n) ? 'Art. ' + U.esc(x.a.n) : U.esc(x.a.n)) + '</b><span class="spacer"></span><label class="chk"><input type="checkbox" data-lido="' + x.i + '"' + (x.a.lido ? ' checked' : '') + '> lido</label><button class="btn xs ghost" data-star="' + x.i + '">' + (x.a.star ? '★ destacado' : '☆ destacar') + '</button><button class="btn xs ghost" data-fc="' + x.i + '">Flashcard</button></div><div style="white-space:pre-wrap;margin-top:6px;font-size:14.5px">' + U.esc(x.a.t) + '</div><textarea data-nota="' + x.i + '" rows="1" placeholder="Anotação…" style="margin-top:6px">' + U.esc(x.a.nota || '') + '</textarea></div>';
-      }).join('') + (arts.length > 400 ? '<div class="empty">Mostrando 400 de ' + arts.length + ' — use a busca.</div>' : '') || '<div class="empty">Nada com esse filtro.</div>';
-    }
-    root.querySelector('#lq').addEventListener('input', function (e) { q = e.target.value; clearTimeout(this._t); this._t = setTimeout(draw, 250); });
-    root.querySelector('#lf').addEventListener('click', function (e) { var b = e.target.closest('[data-f]'); if (!b) return; flt = b.dataset.f; ui.$$('#lf button', root).forEach(function (x) { x.classList.toggle('active', x === b); }); draw(); });
-    root.addEventListener('change', function (e) {
-      if (e.target.dataset.lido != null) { var a = l.arts[+e.target.dataset.lido]; a.lido = e.target.checked; a.lidoEm = a.lido ? U.today() : null; SOS.save(); draw(); }
-    });
-    root.addEventListener('input', function (e) { if (e.target.dataset.nota != null) { l.arts[+e.target.dataset.nota].nota = e.target.value; SOS.save(); } });
-    root.addEventListener('click', function (e) {
-      var b;
-      if ((b = e.target.closest('[data-star]'))) { var a = l.arts[+b.dataset.star]; a.star = !a.star; SOS.save(); draw(); }
-      if ((b = e.target.closest('[data-fc]'))) {
-        var art = l.arts[+b.dataset.fc], txt = art.t.length > 400 ? art.t.slice(0, 397) + '…' : art.t;
-        SOS.views.flashcards.fromError({ id: null, topicId: l.topicId || '', aprender: 'O que dispõe o ' + (/^\d/.test(art.n) ? 'art. ' + art.n : art.n) + ' — ' + l.nome.split(' — ')[0] + '?', correta: txt, justificativa: '', porque: '', banca: '', categorias: ['Desconhecimento da legislação'] }, 'Legislação');
-      }
-    });
-    draw();
   }
 
   /* cronograma de lei seca: distribui os artigos (por tamanho) nos dias úteis até a véspera da prova */

@@ -26,18 +26,21 @@ Inscrições até **30/11/2026 (23h59)** · boleto até **01/12/2026**. Locais d
 |---|---|
 | **Início** | Contagem grande para a prova, contagem para o fim das inscrições, lembrete do motivo, frase do dia (começo do dia, recomeço sem culpa, meta batida, reta final, véspera), meta diária, sequência de dias, **Conquistei hoje** e barra de progresso do plano. |
 | **Planejamento** | Plano até 20/12 com **um cartão por assunto por dia**. Lei seca diária (uma norma por dia), sábado com discursiva, domingo com simulado. Nos **últimos 10 dias**: simulados também às quartas e sábados e o dobro de revisão. Véspera leve. Visões semana, Kanban e calendário. **Recalcular até a prova**, reorganizar pendências (com aprovação), arrastar, duplicar e excluir (com confirmação). |
-| **Lei seca** | **Prioridades** em 3 níveis por norma (Lei Orgânica, Regimento Interno, LC 93/2003, LC 235/2011 + LC 609/2026). Cole o texto oficial e os artigos são numerados e classificados, com motivo e pergunta de fixação. Inclui marcação de lido, destaque, anotação, flashcard e cronograma. Veja [`docs/legislacao-prioridades.md`](docs/legislacao-prioridades.md). |
+| **Lei seca** | **Prioridades** em 3 níveis por norma (Lei Orgânica, Regimento Interno, LC 93/2003, LC 235/2011 + LC 609/2026); veja [`docs/legislacao-prioridades.md`](docs/legislacao-prioridades.md). **Leitor estilo Vade Mecum:** títulos e capítulos destacados; caput, parágrafos, incisos e alíneas com recuo; busca por número ou palavra; filtros (não lidos, destacados, com anotação, com marcações); tamanho da letra; modo leitura; "continuar de onde parei"; **marcações por trecho** (Conceito, Atenção, Pegadinha, Memorizar, Minha anotação). O texto legal **nunca é alterado**: a formatação é só visual. **Flashcards da lei**, por regras ou por IA, de um artigo, dos selecionados, dos destacados ou de um capítulo, em 3 níveis (essencial, intermediário, reta final), sempre pela fila de aprovação. **Assistente de IA:** explicar, pontos importantes, exceções, pegadinhas, comparar. **Questões A–E no estilo Selecon** (geradas por IA, não oficiais): erro vai ao Caderno com o artigo vinculado. Também tem cronograma e jurisprudência. |
 | **Flashcards** | Cartões gerados **só das questões que você errou** (ou marcou "chutei"/"em dúvida"). Ficam na fila **Para aprovar** (aprovar, editar ou descartar). Revisão espaçada com fila do dia por assunto. |
 | **Caderno de Erros** | Erros (manuais e do TEC), categorias, revisão em 1–3–7–15–30 dias e "Revisar meus erros de hoje". |
 | **Questões e desempenho** | Registro do dia por assunto: leitura, questões e acertos, revisão, tempo e observações juntos. O histórico mostra uma linha por assunto por dia. |
 | **Banco de questões (TEC)** | Recebe da extensão do Chrome as questões erradas (completas) e os acertos (só o contador). Inclui cadernos próprios e treino ou simulado. |
 | Revisões, Discursivas, Simulados, Edital verticalizado, Concurso, Estatísticas, Configurações | Como antes, agora só com o Técnico. |
 
-## Flashcards com IA (opcional)
+## IA (opcional)
 
-O site é estático e **não guarda chave de API**. Para usar IA, é preciso uma rota de servidor sua, por exemplo uma função *serverless*, com a chave em variável de ambiente. Cadastre a URL em **Configurações › Rota de IA**.
+O site é estático e **não guarda chave de API**. Há dois jeitos de usar IA, e nos dois a resposta é conferida antes de ser usada:
 
-O site envia `POST { questoes: [{ id, enunciado, alternativas, gabarito, marcada, comentario, assunto }] }` e espera `{ cards: [{ id, frente, verso, fundamento, explicacao }] }`. Sem a rota, os cartões são gerados por regras, e você aprova cada um.
+1. **Copiar e colar com o Claude.** Não precisa configurar nada. O site monta o pedido, você cola numa conversa com o Claude e cola a resposta de volta.
+2. **Rota de servidor sua.** Por exemplo, um Cloudflare Worker gratuito, com a chave em segredo. Cadastre a URL em **Configurações › Rota de IA**.
+
+Passo a passo, contrato completo e código pronto em [`docs/ia-rota.md`](docs/ia-rota.md). O pedido antigo dos flashcards (`{ questoes }` → `{ cards }`) continua funcionando.
 
 ## Backup
 
@@ -55,6 +58,10 @@ node tests/studyos.test.js
 node tests/extensao.test.js
 ```
 
+```bash
+node tests/lei-seca.test.js
+```
+
 ## Estrutura
 
 ```
@@ -62,6 +69,8 @@ index.html · css/styles.css (paleta rosa-antigo/lilás/nude/sálvia, modo escur
 js/config-concurso.js   ← DATAS DO CONCURSO (edite aqui)
 js/migracao.js          migração v3: cargo único + um item por assunto por dia
 js/lei-prioridades.js   priorização da lei seca (estimativa)
+js/lei-parser.js        estrutura do texto legal (só visual), marcações, flashcards por regras
+js/ia.js                assistente de IA: rota de servidor ou copiar e colar, validação das respostas
 js/seed.js · js/core.js · js/engine.js · js/ui.js · js/app.js · js/modules/*.js
 extensao-tec/           extensão do Chrome (TEC Concursos)
 tests/                  testes automáticos (Playwright)

@@ -3,7 +3,8 @@
   var SOS = window.SOS, U = SOS.U, ui = SOS.ui, E = SOS.E;
   var tab = 'painel', f = { disc: '', topic: '', origem: '', estado: '', q: '' };
   var ORIGENS = ['Erro', 'Aula', 'Leitura', 'Legislação', 'Conteúdo importante', 'Importado'];
-  var TIPOS = ['Pergunta objetiva', 'Conceito', 'Situação-problema', 'Diferença entre dois institutos', 'Dispositivo legal'];
+  var TIPOS = ['Pergunta objetiva', 'Conceito', 'Situação-problema', 'Diferença entre dois institutos', 'Dispositivo legal', 'Regra e exceção', 'Prazos e competências', 'Literalidade', 'Comparação', 'Aplicação prática'];
+  var picked = {}; // cartões marcados para exportar
   var ESTADOS = { novo: 'Novo', revisao: 'Em revisão', atrasado: 'Atrasado', aprendido: 'Aprendido', dificil: 'Com dificuldade' };
 
   function inConc(c) { var conc = SOS.app.conc; return conc === 'all' || (c.concursos || []).indexOf(conc) > -1; }
@@ -48,7 +49,7 @@
   }
   function aprovar() {
     var ds = SOS.S.cardDrafts || [], ia = !!SOS.S.settings.iaEndpoint;
-    var h = '<div class="alert info" style="display:block">Cartões gerados <b>só das questões que você errou</b> ou marcou como “chutei/em dúvida”. Frente curta, verso com resposta, fundamento e a explicação do erro em 2 linhas — um conceito por cartão, sem repetir. Nada entra no baralho sem a sua aprovação.' + (ia ? '' : ' <br><small>Geração por regras (sem IA). Para usar IA, configure uma rota de servidor em Configurações — a chave nunca fica no navegador.</small>') + '</div>';
+    var h = '<div class="alert info" style="display:block">Cartões gerados das questões que você errou ou marcou como “chutei/em dúvida” e da <b>lei seca</b> (Lei seca › Ler / marcar › Flashcards). Frente curta, verso com resposta, fundamento e a explicação do erro em 2 linhas — um conceito por cartão, sem repetir. Nada entra no baralho sem a sua aprovação.' + (ia ? '' : ' <br><small>Geração por regras (sem IA). Para usar IA, configure uma rota de servidor em Configurações — a chave nunca fica no navegador.</small>') + '</div>';
     h += '<div class="row" style="margin-bottom:10px"><button class="btn ghost sm" data-act="dgen">Gerar das questões salvas</button>' + (ia ? '<button class="btn ghost sm" data-act="dia">Melhorar com IA</button>' : '') + '<span class="spacer"></span>' + (ds.length ? '<button class="btn sm good" data-act="dall">Aprovar todos</button>' : '') + '</div>';
     if (!ds.length) return h + '<div class="empty">Nada para aprovar agora.</div>';
     return h + ds.map(function (d) {
@@ -57,23 +58,41 @@
         '<label class="f full"><span>Frente</span><textarea name="fr" rows="2">' + U.esc(d.frente) + '</textarea></label>' +
         '<label class="f full"><span>Verso — resposta</span><textarea name="vs" rows="2">' + U.esc(d.verso) + '</textarea></label>' +
         '<label class="f"><span>Fundamento (artigo ou regra)</span><input name="fu" value="' + U.esc(d.fundamento || '') + '"></label>' +
-        '<label class="f"><span>Explicação do erro (2 linhas)</span><textarea name="ex" rows="2">' + U.esc(d.explicacao || '') + '</textarea></label></div>' +
-        '<div class="row" style="margin-top:8px"><button class="btn xs good" data-dok="' + d.id + '">Aprovar</button><button class="btn xs ghost" data-dno="' + d.id + '">Descartar</button></div></div>';
+        '<label class="f"><span>' + (d.leiRef || d.origem === 'Legislação' ? 'Explicação' : 'Explicação do erro (2 linhas)') + '</span><textarea name="ex" rows="2">' + U.esc(d.explicacao || '') + '</textarea></label>' +
+        '<label class="f"><span>Tipo</span><select name="tp">' + ui.opts(TIPOS.indexOf(d.tipo) > -1 || !d.tipo ? TIPOS : TIPOS.concat([d.tipo]), d.tipo || 'Pergunta objetiva') + '</select></label>' +
+        '<label class="f"><span>Tags (separadas por espaço)</span><input name="tg" value="' + U.esc(Array.isArray(d.tags) ? d.tags.join(' ') : d.tags || '') + '"></label></div>' +
+        (d.leiRef ? '<small class="muted">Referência legal: ' + U.esc(refTxt(d.leiRef)) + (d.nivel ? ' · nível ' + U.esc(d.nivel) : '') + '</small>' : '') +
+        '<div class="row" style="margin-top:8px"><button class="btn xs good" data-dok="' + d.id + '">Aprovar</button><button class="btn xs ghost" data-dno="' + d.id + '">Descartar</button>' + (d.leiRef ? '<button class="btn xs ghost" data-art="' + U.esc(d.leiRef.leiId) + '|' + U.esc(d.leiRef.n) + '">Abrir artigo</button>' : '') + '</div></div>';
     }).join('');
   }
   function readDraft(id) {
     var el = document.querySelector('[data-draft="' + id + '"]'); if (!el) return null;
-    return { frente: el.querySelector('[name=fr]').value, verso: el.querySelector('[name=vs]').value, fundamento: el.querySelector('[name=fu]').value, explicacao: el.querySelector('[name=ex]').value };
+    var o = { frente: el.querySelector('[name=fr]').value, verso: el.querySelector('[name=vs]').value, fundamento: el.querySelector('[name=fu]').value, explicacao: el.querySelector('[name=ex]').value };
+    if (el.querySelector('[name=tp]')) { o.tipo = el.querySelector('[name=tp]').value; o.tags = el.querySelector('[name=tg]').value.split(/\s+/).filter(Boolean); }
+    return o;
+  }
+  /* referência legal (campo próprio, não depende do texto da pergunta) */
+  function refTxt(r) {
+    if (!r) return '';
+    var l = (SOS.S.leis || []).find(function (x) { return x.id === r.leiId; });
+    return (SOS.lex ? SOS.lex.nomeArt(r.n) : 'Art. ' + r.n) + (r.disp && r.disp !== 'caput' ? ', ' + r.disp : '') + (l ? ' — ' + l.nome.split(' — ')[0] : '');
   }
 
   /* ---------- geração de cartões a partir das questões salvas ---------- */
   var C = SOS.cards = {};
   function firstSentence(s, max) { s = String(s || '').replace(/\s+/g, ' ').trim(); var m = s.match(/^(.{20,}?[.!?])(\s|$)/); s = m ? m[1] : s; return s.length > (max || 170) ? s.slice(0, (max || 170) - 1) + '…' : s; }
+  /* já existe (mesma referência ou frente muito parecida) na fila ou no baralho? */
+  C.jaExiste = function (d) {
+    var S = SOS.S, ds = S.cardDrafts || [];
+    if (d.ref && (ds.some(function (x) { return x.ref === d.ref; }) || S.flashcards.some(function (x) { return x.ref === d.ref; }))) return true;
+    var lim = d.leiRef ? 0.9 : 0.75; // cartões de lei têm frentes parecidas ("Complete (Art. 5º…)"); exige semelhança maior
+    var dup = function (x) { return U.norm(x.frente) === U.norm(d.frente) || (U.similar(x.frente, d.frente) >= lim && (!d.leiRef || U.norm(x.verso) === U.norm(d.verso))); };
+    return S.flashcards.some(dup) || ds.some(dup);
+  };
   C.addDraft = function (d) {
     var S = SOS.S; S.cardDrafts = S.cardDrafts || [];
     if (!d || !d.frente || !d.verso) return false;
-    if (d.ref && (S.cardDrafts.some(function (x) { return x.ref === d.ref; }) || S.flashcards.some(function (x) { return x.ref === d.ref; }))) return false;
-    if (E.findDuplicateCard(d.frente) || S.cardDrafts.some(function (x) { return U.similar(x.frente, d.frente) >= 0.75; })) return false;
+    if (C.jaExiste(d)) return false;
     S.cardDrafts.push(Object.assign({ id: U.uid('dr'), criado: U.today() }, d));
     return true;
   };
@@ -104,7 +123,11 @@
     var S = SOS.S, d = (S.cardDrafts || []).find(function (x) { return x.id === id; }); if (!d) return;
     if (edit) Object.assign(d, edit);
     var t = SOS.topic(d.topicId), er = d.tecId ? S.erros.find(function (e) { return e.tecId === d.tecId; }) : null;
-    var c = { id: U.uid('f'), tipo: 'Pergunta objetiva', frente: d.frente.trim(), verso: d.verso.trim(), explicacao: (d.explicacao || '').trim(), fundamento: (d.fundamento || '').trim(), pegadinha: '', topicId: d.topicId || '', concursos: t ? t.concursos.slice() : ['TEC'], banca: 'Selecon', origem: er ? 'Erro' : (d.origem || 'Conteúdo importante'), erroId: er ? er.id : null, ref: d.ref || null, tags: '', srs: E.cardNew(), log: [], criadoEm: U.today() };
+    var tags = Array.isArray(d.tags) ? d.tags.join(' ') : (d.tags || '');
+    var c = { id: U.uid('f'), tipo: d.tipo || 'Pergunta objetiva', frente: d.frente.trim(), verso: d.verso.trim(), explicacao: (d.explicacao || '').trim(), fundamento: (d.fundamento || '').trim(), pegadinha: d.pegadinha || '', topicId: d.topicId || '', concursos: t ? t.concursos.slice() : ['TEC'], banca: 'Selecon', origem: er ? 'Erro' : (d.origem || 'Conteúdo importante'), erroId: er ? er.id : null, ref: d.ref || null, tags: tags, srs: E.cardNew(), log: [], criadoEm: U.today() };
+    if (d.leiRef) c.leiRef = d.leiRef;
+    if (d.nivel) c.nivel = d.nivel;
+    if (d.ia) c.ia = true;
     if (!c.frente || !c.verso) return ui.toast('Frente e verso não podem ficar vazios.', 'bad');
     S.flashcards.push(c); if (er) { er.flashcardIds = er.flashcardIds || []; er.flashcardIds.push(c.id); }
     S.cardDrafts = S.cardDrafts.filter(function (x) { return x.id !== id; });
@@ -139,12 +162,15 @@
     var decks = {};
     cs.forEach(function (c) { var t = SOS.topic(c.topicId); var d = t ? t.disc : '—'; (decks[d] = decks[d] || []).push(c); });
     if (!cs.length) return h + '<div class="empty">Nenhum cartão. Crie a partir de um erro do Caderno ou com “+ Novo flashcard”.</div>';
+    var np = Object.keys(picked).filter(function (id) { return picked[id] && find(id); }).length;
+    h += '<div class="row" style="margin-bottom:6px"><small class="muted">' + np + ' selecionado(s) para exportar</small><button class="btn xs ghost" data-pickall>Selecionar os ' + cs.length + ' do filtro</button>' + (np ? '<button class="btn xs ghost" data-picknone>Limpar seleção</button><button class="btn xs" data-act="exportSel">Exportar selecionados (CSV)</button>' : '') + '</div>';
+    lista._ids = cs.map(function (c) { return c.id; });
     Object.keys(decks).forEach(function (d) {
       h += '<div class="card section"><div class="card-h">' + ui.discTag(d) + '<div class="right"><small class="muted">' + decks[d].length + ' cartões</small></div></div>' + decks[d].map(function (c) {
         var t = SOS.topic(c.topicId), s = E.cardState(c);
-        return '<div class="list-item"><div class="row"><span class="tag ' + ({ aprendido: 'good', dificil: 'bad', atrasado: 'bad', novo: '', revisao: 'mid' }[s]) + '">' + ESTADOS[s] + '</span><span class="tag">' + U.esc(c.origem) + '</span>' + ui.concTags(c.concursos) + '<small class="muted">' + U.esc(t ? t.titulo.slice(0, 70) : '') + '</small><span class="spacer"></span><small class="muted">próx.: ' + U.fmtShort(c.srs.due) + ' · int. ' + c.srs.int + 'd · ' + (c.log || []).length + ' rev.</small></div>' +
+        return '<div class="list-item"><div class="row"><label class="chk" title="Selecionar para exportar"><input type="checkbox" data-pick="' + c.id + '"' + (picked[c.id] ? ' checked' : '') + '></label><span class="tag ' + ({ aprendido: 'good', dificil: 'bad', atrasado: 'bad', novo: '', revisao: 'mid' }[s]) + '">' + ESTADOS[s] + '</span><span class="tag">' + U.esc(c.origem) + '</span>' + ui.concTags(c.concursos) + '<small class="muted">' + U.esc(t ? t.titulo.slice(0, 70) : '') + '</small><span class="spacer"></span><small class="muted">próx.: ' + U.fmtShort(c.srs.due) + ' · int. ' + c.srs.int + 'd · ' + (c.log || []).length + ' rev.</small></div>' +
           '<div style="margin-top:4px"><b>' + U.esc(c.frente) + '</b></div><div class="muted" style="white-space:pre-wrap">' + U.esc(c.verso) + '</div>' +
-          '<div class="row" style="gap:6px;margin-top:6px"><button class="btn xs ghost" data-edit="' + c.id + '">Editar</button>' + (c.erroId ? '<button class="btn xs ghost" data-erro="' + c.erroId + '">Abrir erro de origem</button>' : '') + '<button class="btn xs ghost" data-reset="' + c.id + '">Reiniciar progresso</button><button class="btn xs ghost" data-del="' + c.id + '">Excluir</button></div></div>';
+          '<div class="row" style="gap:6px;margin-top:6px"><button class="btn xs ghost" data-edit="' + c.id + '">Editar</button>' + (c.erroId ? '<button class="btn xs ghost" data-erro="' + c.erroId + '">Abrir erro de origem</button>' : '') + (c.leiRef ? '<button class="btn xs ghost" data-art="' + U.esc(c.leiRef.leiId) + '|' + U.esc(c.leiRef.n) + '" title="' + U.esc(refTxt(c.leiRef)) + '">Abrir artigo</button>' : '') + '<button class="btn xs ghost" data-reset="' + c.id + '">Reiniciar progresso</button><button class="btn xs ghost" data-del="' + c.id + '">Excluir</button></div></div>';
       }).join('') + '</div>';
     });
     return h;
@@ -161,8 +187,9 @@
     }).join('') + '</div>';
   }
   function io() {
-    return '<div class="grid g2"><div class="card"><h3>Exportar para o Anki (CSV)</h3><p class="muted">Campos: Frente; Verso; Disciplina; Assunto; Concurso; Tags. No Anki: <i>Arquivo › Importar</i>, escolha o arquivo — o cabeçalho já informa separador e colunas.</p><button class="btn" data-act="export">Baixar CSV (' + SOS.S.flashcards.filter(inConc).length + ' cartões do filtro atual)</button></div>' +
-      '<div class="card"><h3>Importar cartões</h3><p class="muted">Aceita CSV com colunas Frente, Verso e opcionalmente Disciplina, Assunto, Concurso, Tags (separador vírgula, ponto e vírgula ou tab). Cartões com frente igual ou muito semelhante a um existente são ignorados.</p><input type="file" name="csv" accept=".csv,.txt,.tsv"></div></div>';
+    var all = SOS.S.flashcards.filter(inConc), np = Object.keys(picked).filter(function (id) { return picked[id] && find(id); }).length, lei = all.filter(function (c) { return c.leiRef || c.origem === 'Legislação'; }).length;
+    return '<div class="grid g2"><div class="card"><h3>Exportar para o Anki (CSV)</h3><p class="muted">Só cartões <b>aprovados</b> (os da fila “Para aprovar” não saem). Colunas: Frente; Verso; Disciplina; Assunto; Concurso; Tags — iguais às de antes — e, no fim, Explicação; Fundamento; Banca; Tipo; Referência legal; Resposta. No Anki: <i>Arquivo › Importar</i>; o cabeçalho já informa separador e colunas (as duas primeiras viram frente e verso).</p><div class="row" style="gap:6px"><button class="btn" data-act="export">Todos do filtro (' + all.length + ')</button><button class="btn ghost" data-act="exportLei"' + (lei ? '' : ' disabled') + '>Só lei seca (' + lei + ')</button><button class="btn ghost" data-act="exportSel"' + (np ? '' : ' disabled') + '>Selecionados (' + np + ')</button></div><p><small class="muted">Para escolher cartões, marque as caixinhas em “Cartões e decks”.</small></p></div>' +
+      '<div class="card"><h3>Importar cartões</h3><p class="muted">Aceita CSV com colunas Frente, Verso e opcionalmente Disciplina, Assunto, Concurso, Tags e as colunas extras exportadas pelo StudyOS (separador vírgula, ponto e vírgula ou tab). Cartões com frente igual ou muito semelhante a um existente são ignorados.</p><input type="file" name="csv" accept=".csv,.txt,.tsv"></div></div>';
   }
   function find(id) { return SOS.S.flashcards.find(function (c) { return c.id === id; }); }
   function onClick(e) {
@@ -177,6 +204,12 @@
     if (e.target.closest('[data-act=dia]')) return SOS.cards.generateAI();
     if (e.target.closest('[data-act=new]')) return editor([blank()], null);
     if (e.target.closest('[data-act=export]')) return exportCSV();
+    if (e.target.closest('[data-act=exportLei]')) return exportCSV(function (c) { return c.leiRef || c.origem === 'Legislação'; }, 'lei-seca');
+    if (e.target.closest('[data-act=exportSel]')) return exportCSV(function (c) { return picked[c.id]; }, 'selecionados', true);
+    if ((x = e.target.closest('[data-pick]'))) { picked[x.dataset.pick] = x.checked; return SOS.app.render(); }
+    if (e.target.closest('[data-pickall]')) { (lista._ids || []).forEach(function (id) { picked[id] = true; }); return SOS.app.render(); }
+    if (e.target.closest('[data-picknone]')) { picked = {}; return SOS.app.render(); }
+    if ((x = e.target.closest('[data-art]'))) { var pr = x.dataset.art.split('|'); return SOS.leitor.abrirPorId(pr[0], pr.slice(1).join('|')); }
     if ((x = e.target.closest('[data-edit]'))) return editor([find(x.dataset.edit)], null, true);
     if ((x = e.target.closest('[data-erro]'))) { var er = SOS.S.erros.find(function (y) { return y.id === x.dataset.erro; }); return er ? SOS.views.erros.openForm({ erro: er }) : ui.toast('Erro de origem foi excluído.', 'mid'); }
     if ((x = e.target.closest('[data-reset]'))) { var c = find(x.dataset.reset); return ui.confirm('Reiniciar o progresso deste cartão? O histórico de revisões será apagado.', function () { c.srs = E.cardNew(); c.log = []; SOS.save(); SOS.app.render(); }, 'Reiniciar'); }
@@ -189,7 +222,7 @@
   function fromError(e, origem) {
     if (!e) return;
     var real = !!(e.id && SOS.S.erros.some(function (x) { return x.id === e.id; }));
-    var drafts = E.draftFromError(e).map(function (d) { var c = blank(e.topicId); Object.assign(c, d); c.origem = real ? 'Erro' : (origem || 'Conteúdo importante'); c.erroId = real ? e.id : null; c.banca = e.banca || 'Selecon'; return c; });
+    var drafts = E.draftFromError(e).map(function (d) { var c = blank(e.topicId); Object.assign(c, d); c.origem = real ? 'Erro' : (origem || 'Conteúdo importante'); c.erroId = real ? e.id : null; c.banca = e.banca || 'Selecon'; if (e.leiRef) { c.leiRef = e.leiRef; if (!c.fundamento) c.fundamento = e.fundamentoLei || refTxt(e.leiRef); } return c; });
     editor(drafts, real ? e : null);
   }
 
@@ -303,18 +336,19 @@
   }
 
   /* CSV compatível com Anki */
-  function exportCSV() {
-    var cs = SOS.S.flashcards.filter(inConc);
+  function exportCSV(filtro, sufixo, ignoraConc) {
+    var cs = SOS.S.flashcards.filter(function (c) { return (ignoraConc || inConc(c)) && (!filtro || filtro(c)); });
     if (!cs.length) { ui.toast('Nenhum cartão para exportar.', 'mid'); return; }
     function html(s) { return U.esc(s || '').replace(/\n/g, '<br>'); }
-    var lines = ['#separator:Semicolon', '#html:true', '#columns:Frente;Verso;Disciplina;Assunto;Concurso;Tags', '#tags column:6'];
+    var lines = ['#separator:Semicolon', '#html:true', '#columns:Frente;Verso;Disciplina;Assunto;Concurso;Tags;Explicacao;Fundamento;Banca;Tipo;Referencia;Resposta', '#tags column:6'];
     cs.forEach(function (c) {
       var t = SOS.topic(c.topicId);
       var verso = html(c.verso) + (c.explicacao ? '<br><br>' + html(c.explicacao) : '') + (c.fundamento ? '<br><br><i>Fundamentação:</i> ' + html(c.fundamento) : '') + (c.pegadinha ? '<br><br><b>Atenção:</b> ' + html(c.pegadinha) : '');
-      var tags = ['StudyOS', (c.origem || '').replace(/\s+/g, '_')].concat((c.concursos || []).map(function (x) { return 'Concurso::' + x; })).concat(t ? ['Disciplina::' + t.disc] : []).concat((c.tags || '').split(/\s+/).filter(Boolean));
-      lines.push([html(c.frente), verso, t ? SOS.disc(t.disc).nome : '', t ? t.titulo : '', (c.concursos || []).map(function (x) { var cc = SOS.conc(x); return cc ? cc.sigla : x; }).join(' / '), tags.join(' ')].map(U.csvCell).join(';'));
+      var tags = ['StudyOS', (c.origem || '').replace(/\s+/g, '_')].concat(c.leiRef ? ['Lei_Seca'] : []).concat(c.tipo ? ['Tipo::' + c.tipo.replace(/\s+/g, '_')] : []).concat((c.concursos || []).map(function (x) { return 'Concurso::' + x; })).concat(t ? ['Disciplina::' + t.disc] : []).concat((c.tags || '').split(/\s+/).filter(Boolean));
+      tags = tags.filter(function (x, k) { return tags.indexOf(x) === k; });
+      lines.push([html(c.frente), verso, t ? SOS.disc(t.disc).nome : '', t ? t.titulo : '', (c.concursos || []).map(function (x) { var cc = SOS.conc(x); return cc ? cc.sigla : x; }).join(' / '), tags.join(' '), html(c.explicacao), html(c.fundamento), c.banca || '', c.tipo || '', html(refTxt(c.leiRef)), html(c.verso)].map(U.csvCell).join(';'));
     });
-    U.download('studyos-flashcards-anki-' + U.today() + '.csv', '﻿' + lines.join('\n'), 'text/csv;charset=utf-8');
+    U.download('studyos-flashcards-anki-' + (sufixo ? sufixo + '-' : '') + U.today() + '.csv', '﻿' + lines.join('\n'), 'text/csv;charset=utf-8');
     ui.toast(cs.length + ' cartões exportados.', 'good');
   }
   function importCSV(file) {
@@ -331,7 +365,7 @@
         var add = 0, skip = 0;
         function strip(s) { return String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim(); }
         rows.forEach(function (row) {
-          var fr = strip(row[0]), vs = strip(row[1]);
+          var fr = strip(row[0]), vs = row.length > 11 && strip(row[11]) ? strip(row[11]) : strip(row[1]);
           if (!fr || !vs) { skip++; return; }
           if (SOS.S.flashcards.some(function (c) { return U.norm(c.frente) === U.norm(fr) || U.similar(c.frente, fr) >= 0.9; })) { skip++; return; }
           var c = blank(); c.frente = fr; c.verso = vs; c.origem = 'Importado';
@@ -343,6 +377,7 @@
           var cn = row[4] || '';
           SOS.S.concursos.forEach(function (cc) { if (cn.indexOf(cc.sigla) > -1 || cn.split(/[\s\/]+/).indexOf(cc.id) > -1) { if (c.concursos.indexOf(cc.id) < 0) c.concursos.push(cc.id); } });
           c.tags = (row[5] || '').split(/\s+/).filter(function (x) { return x && x !== 'StudyOS' && x.indexOf('::') < 0; }).join(' ');
+          if (row.length > 11) { c.explicacao = strip(row[6]); c.fundamento = strip(row[7]); c.banca = strip(row[8]) || c.banca; if (strip(row[9])) c.tipo = strip(row[9]); }
           SOS.S.flashcards.push(c); add++;
         });
         SOS.log('Flashcards importados', add + ' novos, ' + skip + ' ignorados'); SOS.save(); SOS.app.render();

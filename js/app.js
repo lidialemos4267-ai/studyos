@@ -101,7 +101,7 @@
         (R.despoluidas ? '<li>Banco de questões: acertos comuns agora guardam só o contador.</li>' : '') +
         (R.orfaos ? '<li>' + R.orfaos + ' registro(s) de estudo eram de assuntos que saíram; eles continuam guardados.</li>' : '') + '</ul>' +
         (amb.length ? '<div class="alert mid" style="display:block"><b>Confira estes casos (podem ter sido contados duas vezes):</b><ul style="margin:6px 0 0;padding-left:18px">' + amb.map(li).join('') + '</ul><small>Corrija em Questões e desempenho, se necessário.</small></div>' : '<p class="muted">Nenhum caso ambíguo encontrado.</p>'),
-      buttons: [{ label: 'Entendi', onClick: function () { SOS.S.migr3Visto = true; SOS.save(); } }]
+      buttons: [{ label: 'Entendi', onClick: function () { SOS.S.migr3Visto = true; SOS.saveNow(); } }]
     });
   };
 })();

@@ -65,11 +65,11 @@
   function statusTag(s) { var c = { 'Novo': 'bad', 'Precisa estudar novamente': 'bad', 'Em revisão': 'mid', 'Corrigido': 'good', 'Superado': 'good' }[s]; return '<span class="tag ' + c + '">' + s + '</span>'; }
   function item(e) {
     var t = SOS.topic(e.topicId);
-    return '<div class="list-item"><div class="row">' + statusTag(e.status) + (t ? ui.discTag(t.disc) : '') + '<b>' + U.esc(t ? t.titulo : '(sem assunto)') + '</b>' + ((e.ocorrencias || 1) > 1 ? '<span class="tag bad">errei ' + e.ocorrencias + '×</span>' : '') + ((e.flashcardIds || []).length ? '<span class="tag good">' + e.flashcardIds.length + ' flashcard(s)</span>' : '') + (e.origem === 'TEC' ? '<span class="tag">TEC</span>' : '') + (!(e.categorias || []).length ? '<span class="tag mid">classificar</span>' : '') + '<span class="spacer"></span><small class="muted">' + U.fmtDate(e.data) + (e.banca ? ' · ' + U.esc(e.banca) : '') + (e.rev && e.rev.next ? ' · revisar ' + U.fmtShort(e.rev.next) : '') + '</small></div>' +
+    return '<div class="list-item"><div class="row">' + statusTag(e.status) + (t ? ui.discTag(t.disc) : '') + '<b>' + U.esc(t ? t.titulo : '(sem assunto)') + '</b>' + ((e.ocorrencias || 1) > 1 ? '<span class="tag bad">errei ' + e.ocorrencias + '×</span>' : '') + ((e.flashcardIds || []).length ? '<span class="tag good">' + e.flashcardIds.length + ' flashcard(s)</span>' : '') + (e.origem === 'TEC' ? '<span class="tag">TEC</span>' : '') + (e.qLeiId ? '<span class="tag mid">questão da lei (IA)</span>' : '') + (e.leiRef ? '<span class="tag">' + U.esc(refLei(e.leiRef)) + '</span>' : '') + (!(e.categorias || []).length ? '<span class="tag mid">classificar</span>' : '') + '<span class="spacer"></span><small class="muted">' + U.fmtDate(e.data) + (e.banca ? ' · ' + U.esc(e.banca) : '') + (e.rev && e.rev.next ? ' · revisar ' + U.fmtShort(e.rev.next) : '') + '</small></div>' +
       (e.enunciado ? '<div style="margin:6px 0;white-space:pre-wrap">' + U.esc(e.enunciado.length > 260 ? e.enunciado.slice(0, 257) + '…' : e.enunciado) + '</div>' : '') +
       '<div class="row" style="gap:6px">' + (e.categorias || []).map(function (c) { return '<span class="tag">' + U.esc(c) + '</span>'; }).join('') + '</div>' +
       (e.aprender ? '<small><b>O que preciso aprender:</b> ' + U.esc(e.aprender) + '</small><br>' : '') +
-      '<div class="row" style="margin-top:6px;gap:6px"><button class="btn xs ghost" data-open="' + e.id + '">Abrir / editar</button><button class="btn xs ghost" data-repeat="' + e.id + '">Errei de novo</button><button class="btn xs ghost" data-card="' + e.id + '">Transformar em flashcard</button><button class="btn xs ghost" data-del="' + e.id + '">Excluir</button></div></div>';
+      '<div class="row" style="margin-top:6px;gap:6px"><button class="btn xs ghost" data-open="' + e.id + '">Abrir / editar</button><button class="btn xs ghost" data-repeat="' + e.id + '">Errei de novo</button><button class="btn xs ghost" data-card="' + e.id + '">Transformar em flashcard</button>' + (e.leiRef ? '<button class="btn xs ghost" data-lei="' + e.id + '">Abrir artigo</button>' : '') + '<button class="btn xs ghost" data-del="' + e.id + '">Excluir</button></div></div>';
   }
   function kcard(e) {
     var t = SOS.topic(e.topicId);
@@ -85,6 +85,7 @@
     });
   }
   function find(id) { return SOS.S.erros.find(function (e) { return e.id === id; }); }
+  function refLei(r) { var l = (SOS.S.leis || []).find(function (x) { return x.id === r.leiId; }); return (SOS.lex ? SOS.lex.nomeArt(r.n) : 'Art. ' + r.n) + (l ? ' — ' + l.nome.split(' — ')[0] : ''); }
   function onClick(e) {
     var x;
     if (e.target.closest('[data-act=new]')) return openForm({});
@@ -93,6 +94,7 @@
     if ((x = e.target.closest('[data-open]'))) return openForm({ erro: find(x.dataset.open) });
     if ((x = e.target.closest('[data-repeat]'))) { var r = find(x.dataset.repeat); E.erroRepeat(r); SOS.log('Erro repetido', SOS.topicLabel(r.topicId)); SOS.save(); ui.toast('Ocorrência registrada. Prioridade do assunto aumentada e revisão reprogramada para amanhã.', 'mid', 4500); return SOS.app.render(); }
     if ((x = e.target.closest('[data-card]'))) return SOS.views.flashcards.fromError(find(x.dataset.card));
+    if ((x = e.target.closest('[data-lei]'))) { var el = find(x.dataset.lei); return SOS.leitor.abrirPorId(el.leiRef.leiId, el.leiRef.n); }
     if ((x = e.target.closest('[data-del]'))) { var d = find(x.dataset.del); return ui.confirm('Excluir este erro do Caderno? Os flashcards criados a partir dele são mantidos (perdem apenas o vínculo).', function () { if (d.tecId && SOS.tec) SOS.tec.st().erroIgnorado[d.tecId] = d.ocorrencias || 1; SOS.S.erros = SOS.S.erros.filter(function (y) { return y.id !== d.id; }); SOS.S.flashcards.forEach(function (c) { if (c.erroId === d.id) c.erroId = null; }); SOS.log('Erro excluído', SOS.topicLabel(d.topicId)); SOS.save(); SOS.app.render(); }); }
   }
 
@@ -134,12 +136,13 @@
       '<label class="f full"><span>Imagem da questão</span><input type="file" name="img" accept="image/*">' + (e.imagem ? '<img src="' + e.imagem + '" alt="Imagem da questão" style="max-width:100%;margin-top:6px;border-radius:8px" id="imgPrev"><label class="chk" style="width:max-content;margin-top:4px"><input type="checkbox" name="rmimg"> remover imagem</label>' : '') + '</label>' +
       '<label class="f full"><span>Observações</span><textarea name="obs" rows="2">' + U.esc(e.obs) + '</textarea></label>' +
       '</div>' +
+      (e.leiRef ? '<div class="alert info" style="justify-content:space-between"><span>Artigo vinculado: <b>' + U.esc(refLei(e.leiRef)) + '</b></span><button type="button" class="btn xs" data-leiform>Abrir artigo</button></div>' : '') +
       (!isNew ? '<hr><div class="row"><small class="muted">Ocorrências: <b>' + (e.ocorrencias || 1) + '</b> · Próxima revisão: <b>' + (e.rev && e.rev.next ? U.fmtDate(e.rev.next) : '—') + '</b> · Revisões feitas: ' + (e.revisoes || []).length + '</small></div>' + (cards.length ? '<p><small>Flashcards vinculados: ' + cards.map(function (c) { return '“' + U.esc(c.frente.slice(0, 60)) + '” (' + E.cardState(c) + ')'; }).join('; ') + '</small></p>' : '') : '') +
       (E.adviceForTopic(e.topicId).length ? '<div class="alert mid" style="display:block"><b>Sugestões para este assunto</b><ul style="margin:4px 0 0;padding-left:18px">' + E.adviceForTopic(e.topicId).map(function (a) { return '<li>' + U.esc(a.txt) + '</li>'; }).join('') + '</ul></div>' : '');
     var newImg = null, saved = null;
     ui.modal({
       title: isNew ? 'Registrar erro' : 'Erro do Caderno', wide: true, body: body,
-      onOpen: function (root) { root.querySelector('[name=img]').addEventListener('change', function (ev) { var fl = ev.target.files[0]; if (fl) readImage(fl, function (d) { newImg = d; ui.toast('Imagem anexada.', 'good'); }); }); },
+      onOpen: function (root) { var lb = root.querySelector('[data-leiform]'); if (lb) lb.addEventListener('click', function () { SOS.leitor.abrirPorId(e.leiRef.leiId, e.leiRef.n); }); root.querySelector('[name=img]').addEventListener('change', function (ev) { var fl = ev.target.files[0]; if (fl) readImage(fl, function (d) { newImg = d; ui.toast('Imagem anexada.', 'good'); }); }); },
       buttons: [{ label: 'Cancelar', cls: 'ghost' }, { label: 'Salvar e criar flashcard', cls: 'ghost', onClick: function (c, root) { if (save(root) === false) return false; var target = saved || e; setTimeout(function () { SOS.views.flashcards.fromError(target); }, 20); } }, { label: 'Salvar', onClick: function (c, root) { return save(root); } }]
     });
     function save(root) {

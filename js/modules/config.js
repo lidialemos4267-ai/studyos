@@ -26,7 +26,7 @@
         f('Lembrete de backup a cada (dias)', '<input type="number" min="1" name="lembreteBackupDias" value="' + s.lembreteBackupDias + '">') +
         f('Meta diária (00:00h)', '<input name="metaDiariaMin" value="' + U.fmtMin(s.metaDiariaMin || 240).replace('h', '') + '">') +
         f('Meta de questões até a prova', '<input type="number" min="0" name="metaQuestoesTotal" value="' + (s.metaQuestoesTotal || 700) + '">') +
-        '<label class="f full"><span>Rota de IA para flashcards (opcional — URL do SEU servidor; a chave da API fica lá, nunca aqui)</span><input name="iaEndpoint" placeholder="https://…/api/flashcards" value="' + U.esc(s.iaEndpoint || '') + '"></label>' +
+        '<label class="f full"><span>Rota de IA (opcional — URL do SEU servidor; a chave da API fica lá, nunca aqui). Usada nos flashcards, no assistente da lei seca e nas questões A–E. Sem rota, o StudyOS oferece “copiar e colar com o Claude”. Formato em docs/ia-rota.md.</span><input name="iaEndpoint" placeholder="https://…/api/flashcards" value="' + U.esc(s.iaEndpoint || '') + '"></label>' +
         f('Tema', '<select name="tema">' + ui.opts([['auto', 'Automático (sistema)'], ['light', 'Claro'], ['dark', 'Escuro']], s.tema) + '</select>') +
         '</div><div class="row" style="margin-top:12px"><button class="btn" data-act="save">Salvar configurações</button></div></div>';
       h += '</div><div class="card section"><h3>Zona de cuidado</h3><p class="muted" style="margin-top:0">Redefinir apaga todos os registros e recarrega os editais originais. Um snapshot do estado atual é guardado antes.</p><button class="btn danger" data-act="reset">Redefinir StudyOS</button></div>';

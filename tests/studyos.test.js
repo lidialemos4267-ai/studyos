@@ -97,7 +97,7 @@ const check = (c, m) => { if (c) { ok++; console.log('  ✓ ' + m); } else { fal
   check(m.errC.join() === 'TEC,OUV' && !m.errC.includes('ANA') && !m.fc.includes('ANA'), 'erros e flashcards sem o Analista (tópico compartilhado: Técnico + Chapada)');
   check(m.q1 && m.q1[0] === false && m.q1[1] === 1, 'acerto comum do banco: conteúdo removido, contador mantido');
   const antes = await p.evaluate(() => JSON.stringify([SOS.S.sessoes.length, SOS.S.atividades.length]));
-  await p.locator('.modal-f .btn', { hasText: 'Entendi' }).click(); await p.waitForTimeout(400);
+  await p.locator('.modal-f .btn', { hasText: 'Entendi' }).click(); await p.waitForTimeout(1500); // dá tempo ao navegador de gravar antes de recarregar
   await p.reload(); await p.waitForTimeout(900);
   const depois = await p.evaluate(() => JSON.stringify([SOS.S.sessoes.length, SOS.S.atividades.length]));
   check(!(await p.$('.modal')) && antes === depois, 'migração roda uma vez só (depois de “Entendi”, não repete nem altera os dados)');

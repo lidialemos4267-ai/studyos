@@ -24,6 +24,10 @@ node tests/studyos.test.js
 node tests/extensao.test.js
 ```
 
+```bash
+node tests/lei-seca.test.js
+```
+
 - `studyos.test.js` confere:
   - cargo único e datas;
   - plano até a prova (um assunto por dia, até 3 disciplinas, Português e Informática em dias diferentes, uma norma por dia, reta final com mais simulados e revisões);
@@ -38,5 +42,16 @@ node tests/extensao.test.js
   - erro e "chutei" guardam a questão completa;
   - limpeza dos acertos antigos;
   - popup e diagnóstico.
+
+- `lei-seca.test.js` confere:
+  - importação da lei, separação dos artigos e identificação de parágrafos, incisos, alíneas e capítulos;
+  - preservação do texto original, letra por letra;
+  - navegação, busca e filtros;
+  - marcações e anotações que sobrevivem ao recarregar e à atualização da norma;
+  - flashcards da lei (geração, aprovação, sem duplicidade);
+  - exportação para o Anki (colunas antigas mantidas) e importação antiga e nova;
+  - rota de IA simulada no teste (contrato, segurança contra HTML, erros 429 e formato inválido, modo copiar e colar);
+  - questões A–E, Caderno de Erros com o artigo vinculado;
+  - dados antigos preservados.
 
 Os seletores do TEC real só são confirmados com o **Diagnóstico** da extensão no site de verdade.
